@@ -8,7 +8,9 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.util.ArrayDeque;
 import java.util.ArrayList;
+import java.util.Deque;
 import java.util.Iterator;
 import java.util.List;
 import java.util.jar.JarInputStream;
@@ -42,28 +44,60 @@ public class JarGrep {
 		nonOptionArguments.forEachRemaining(p -> jars.add(Paths.get(p.toString())));
 
 		for(Path jar : jars) {
-			try(JarInputStream jis = new JarInputStream(new BufferedInputStream(Files.newInputStream(jar)))) {
-				scan(jar, jis, pattern);
+			try(
+				Context f = new Context().push(jar.toString());
+				JarInputStream jis = new JarInputStream(new BufferedInputStream(Files.newInputStream(jar)))
+			) {
+				scan(f, jis, pattern);
 			}
 		}
 	}
 
-	static void scan(Path jar, JarInputStream jis, Pattern pattern) throws IOException {
+	public static class Context implements AutoCloseable {
+		Deque<String> context = new ArrayDeque<>();
+
+		public Context push(String ctx) {
+			context.addLast(ctx);
+			return this;
+		}
+
+		@Override
+		public void close() {
+			context.removeLast();
+		}
+
+		@Override
+		public String toString() {
+			return String.join(":", context);
+		}
+
+		public Context print(String message) {
+			System.out.println(this + " " + message);
+			return this;
+		}
+	}
+
+	static void scan(Context context, JarInputStream jis, Pattern pattern) throws IOException {
 		ZipEntry entry;
 		while((entry = jis.getNextEntry()) != null) {
-
 			String name = entry.getName();
-			if(pattern.matcher(name).find()) {
-				System.out.println("in filename: " + jar + " " + name);
-			}
 
-			byte[] allBytes = wow(jis);
-			if(pattern.matcher(new String(allBytes, StandardCharsets.UTF_8)).find()) {
-				System.out.println("in file: " + jar + " " + name);
-			}
+			try(Context ctx = context.push(name)) {
+				if(pattern.matcher(name).find()) {
+					ctx.push("(filename)").print("").close();
+				}
 
-			if(name.endsWith(".class")) {
-				scanClass(jar, allBytes, pattern);
+				byte[] allBytes = wow(jis);
+				String allBytesAsString = new String(allBytes, StandardCharsets.UTF_8);
+				for(String line : allBytesAsString.split("\n")) {
+					if(pattern.matcher(name).find()) {
+						ctx.print(line);
+					}
+				}
+
+				if(name.endsWith(".class")) {
+					scanClass(ctx, allBytes, pattern);
+				}
 			}
 		}
 	}
@@ -76,40 +110,56 @@ public class JarGrep {
 		return out.toByteArray();
 	}
 
-	static void scanClass(Path jar, byte[] bytes, Pattern pattern) throws IOException {
+	static void scanClass(Context ctx, byte[] bytes, Pattern pattern) throws IOException {
 		ClassReader cr = new ClassReader(bytes);
 
 		cr.accept(new ClassVisitor(Opcodes.ASM9) {
-			String currentClass;
-
 			@Override
 			public void visit(int version, int access, String name, String signature, String superName, String[] interfaces) {
-				if(pattern.matcher(name).find())
-					System.out.println("in class name: " + jar + " " + name);
-
-				currentClass = name;
+				ctx.push("class " + name);
 				super.visit(version, access, name, signature, superName, interfaces);
 			}
 
 			@Override
 			public FieldVisitor visitField(int access, String name, String descriptor, String signature, Object value) {
-				if(pattern.matcher(name).find())
-					System.out.println("in field name: " + jar + " " + currentClass + " " + name);
+				ctx.push("field " + name);
 
-				if(value != null) {
-					if(pattern.matcher(value.toString()).find())
-						System.out.println("in field value: " + jar + " " + currentClass + " " + value);
-				}
+				if(pattern.matcher(name).find())
+					ctx.print("");
+
+				if(value != null && pattern.matcher(value.toString()).find())
+					ctx.push("(field value)").print(value.toString()).close();
+
+				ctx.close();
 
 				return super.visitField(access, name, descriptor, signature, value);
 			}
 
 			@Override
 			public MethodVisitor visitMethod(int access, String name, String descriptor, String signature, String[] exceptions) {
-				if(pattern.matcher(name).find())
-					System.out.println("in method name: " + jar + " " + currentClass + " " + name);
+				ctx.push("method " + name);
 
-				return super.visitMethod(access, name, descriptor, signature, exceptions);
+				if(pattern.matcher(name).find())
+					ctx.print("");
+
+				return new MethodVisitor(Opcodes.ASM9, super.visitMethod(access, name, descriptor, signature, exceptions)) {
+					@Override
+					public void visitLdcInsn(Object value) {
+						if(value != null && pattern.matcher(value.toString()).find())
+							ctx.push("(ldc)").print(value.toString()).close();
+					}
+
+					@Override
+					public void visitEnd() {
+						super.visitEnd();
+						ctx.close();
+					}
+				};
+			}
+
+			@Override
+			public void visitEnd() {
+				ctx.close();
 			}
 		}, ClassReader.EXPAND_FRAMES);
 	}
