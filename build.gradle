@@ -1,0 +1,31 @@
+apply plugin: "java"
+apply plugin: "application"
+
+group = "agency.highlysuspect"
+version = "1.0-SNAPSHOT"
+
+java.toolchain.languageVersion = JavaLanguageVersion.of(8)
+compileJava {
+    sourceCompatibility = "8"
+    targetCompatibility = "8"
+}
+
+repositories {
+    mavenCentral()
+}
+
+dependencies {
+    //testImplementation platform("org.junit:junit-bom:5.9.1")
+    //testImplementation "org.junit.jupiter:junit-jupiter"
+    
+    implementation "net.sf.jopt-simple:jopt-simple:6.0-alpha-3"
+    implementation "org.ow2.asm:asm:9.7"
+}
+
+test {
+    //useJUnitPlatform()
+}
+
+application {
+    mainClass = "agency.highlysuspect.jargrep.JarGrep"
+}
