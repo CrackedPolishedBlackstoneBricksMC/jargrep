@@ -15,6 +15,7 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.jar.JarInputStream;
 import java.util.regex.Pattern;
+import java.util.stream.Stream;
 import java.util.zip.ZipEntry;
 
 import joptsimple.OptionParser;
@@ -28,10 +29,11 @@ import org.objectweb.asm.Opcodes;
 public class JarGrep {
 	public static void main(String[] args) throws Exception {
 		OptionParser opt = new OptionParser();
+		//todo options...
 
 		OptionSet set = opt.parse(args);
 
-		if(set.nonOptionArguments().size() < 2) {
+		if(set.nonOptionArguments().isEmpty()) {
 			System.err.println("Usage: java -jar jargrep.jar -- [PATTERN] [JARS]");
 			System.exit(1);
 		}
@@ -42,6 +44,13 @@ public class JarGrep {
 
 		List<Path> jars = new ArrayList<>();
 		nonOptionArguments.forEachRemaining(p -> jars.add(Paths.get(p.toString())));
+		if(jars.isEmpty()) {
+			try(Stream<Path> listing = Files.list(Paths.get("."))) {
+				listing
+					.filter(p -> p.getFileName().toString().endsWith(".jar"))
+					.forEach(jars::add);
+			}
+		}
 
 		for(Path jar : jars) {
 			try(
@@ -115,12 +124,6 @@ public class JarGrep {
 
 		cr.accept(new ClassVisitor(Opcodes.ASM9) {
 			@Override
-			public void visit(int version, int access, String name, String signature, String superName, String[] interfaces) {
-				ctx.push("class " + name);
-				super.visit(version, access, name, signature, superName, interfaces);
-			}
-
-			@Override
 			public FieldVisitor visitField(int access, String name, String descriptor, String signature, Object value) {
 				ctx.push("field " + name);
 
@@ -155,11 +158,6 @@ public class JarGrep {
 						ctx.close();
 					}
 				};
-			}
-
-			@Override
-			public void visitEnd() {
-				ctx.close();
 			}
 		}, ClassReader.EXPAND_FRAMES);
 	}

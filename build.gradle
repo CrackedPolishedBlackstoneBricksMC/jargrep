@@ -29,3 +29,17 @@ test {
 application {
     mainClass = "agency.highlysuspect.jargrep.JarGrep"
 }
+
+tasks.register('fat', Jar) {
+    manifest {
+        attributes "Main-Class": project.application.mainClass
+    }
+    archiveClassifier = "all"
+    from {
+        configurations.runtimeClasspath.collect {it.isDirectory() ? it : zipTree(it)}
+    }
+    with jar
+}
+
+//What
+tasks.named("run").configure {it.dependsOn(tasks.named("build"))}
