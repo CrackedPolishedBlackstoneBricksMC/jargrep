@@ -15,7 +15,7 @@ The built fatjar will be in `./build/libs`.
 * Install Java 8 or later.
 * Download `jargrep-(version)-all.jar` and put it somewhere on your system. You can rename it.
 * Set up a shell alias:
-  * `alias jargrep="java -jar /path/to/jargrep.jar -- "`
+  * `alias jargrep="java -jar /path/to/jargrep.jar"`
 
 ## Usage
 

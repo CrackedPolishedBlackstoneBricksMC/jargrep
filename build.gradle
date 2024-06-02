@@ -43,4 +43,7 @@ tasks.register('fat', Jar) {
 }
 
 //What
-tasks.named("run").configure {it.dependsOn(tasks.named("build"))}
+tasks.named("run").configure {
+    it.dependsOn(tasks.named("build"))
+    it.workingDir = file("./random-test-data")
+}
