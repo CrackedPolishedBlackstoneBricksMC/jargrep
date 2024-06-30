@@ -4,6 +4,10 @@ Search a collection of jar files.
 
 For all files, searches filenames and file contents. For class files, searches field and method names, field values, and ldc constants.
 
+## Download
+
+[Go to the releases tab.](https://github.com/quat1024/jargrep/releases).
+
 ## Compilation
 
 `./gradlew fat`
