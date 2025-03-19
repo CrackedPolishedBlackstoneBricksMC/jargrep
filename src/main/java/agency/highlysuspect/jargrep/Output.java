@@ -75,8 +75,8 @@ public class Output {
 		}
 
 		StringBuilder indentation = new StringBuilder();
-		for(int i = 0; i < level * 3; i++) {
-			indentation.append(' ');
+		for(int i = 0; i < level; i++) {
+			indentation.append("   ");
 		}
 
 		indentation.setCharAt(indentation.length() - 3, '\\');
