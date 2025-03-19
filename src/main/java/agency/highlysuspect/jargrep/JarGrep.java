@@ -20,85 +20,137 @@ import org.objectweb.asm.Opcodes;
 public class JarGrep {
 	public static void main(String[] args) throws Exception {
 		Opts opts = Opts.parse(args);
-
+		
+		Writer.FsWriter result = new ConsoleWriter(System.out);
+		
 		for(Path target : opts.targets) {
-			InputStream in;
-
-			try {
-				in = Files.newInputStream(target);
-			} catch (Exception e) {
-				e.printStackTrace();
-				continue;
-			}
-
-			in = new BufferedInputStream(in);
-
-			try {
-				processFile(opts, target.normalize().toString(), in);
-			} finally {
-				in.close();
+			String filename = target.getFileName().toString();
+			try(InputStream in = new BufferedInputStream(Files.newInputStream(target))) {
+				visitInputStream(opts, result, filename, in);
 			}
 		}
-
-		if(!opts.out.topLevel()) {
-			opts.out.print("{jargrep bug} Seems like I pushed more than I popped...!");
-		}
+		
+		result.close();
 	}
-
-	static void processFile(Opts opts, String filename, InputStream in) throws Exception {
-		if(!opts.out.topLevel() && !opts.filenameFilter.test(filename))
-			return;
-
-		opts.out.pushFilename(filename);
-
-		if(opts.searchFilenames && opts.matches(filename)) opts.out.print("filename");
-
+	
+	static void visitInputStream(Opts opts, Writer.FsWriter fsWriter, String filename, InputStream in) throws Exception {
 		byte[] allBytes = readAll(in);
 		boolean binary = looksBinary(allBytes);
-		boolean wasSpecial = false;
+		boolean filenameMatch = opts.matches(filename);
 
-		//if it's a jar or zip file, recurse inside that file
-		if(filename.endsWith(".jar") || filename.endsWith(".zip")) {
-			wasSpecial = processZip(opts, allBytes);
-		}
-
-		//if it's a class file, search inside the class
-		if(opts.searchClasses && filename.endsWith(".class")) {
-			wasSpecial = processClass(opts, allBytes);
-		}
-
-		//search the file?
-		boolean doSearch;
-		if(!binary) {
-			doSearch = true;
-		} else {
-			if(opts.binaryMode == Opts.BinaryMode.WITHOUT_MATCH) {
-				doSearch = false;
-			} else if(!opts.searchInsideSpecial && wasSpecial) {
-				doSearch = false;
-			} else {
-				doSearch = true;
-			}
-		}
-
-		//search the file
-		if(doSearch) {
-			for(String line : new String(allBytes, StandardCharsets.UTF_8).split("\n")) {
-				if(opts.matches(line)) {
-					if(binary && opts.binaryMode == Opts.BinaryMode.BINARY) {
-						opts.out.print("Binary file matches");
-						break;
-					} else {
-						opts.out.print(line);
-					}
+		if(binary) {
+			boolean visitedAsSpecial = false;
+			
+			//is it a jar or zip?
+			//TODO check the first few bytes to catch renamed zips(?)
+			if(filename.endsWith(".jar") || filename.endsWith(".zip")) {
+				try(Writer.FsWriter archiveWriter = fsWriter.archiveWriter(filename)) {
+					if(filenameMatch) archiveWriter.writeFileName(filename);
+					visitZip(opts, archiveWriter, allBytes);
+					visitedAsSpecial = true;
 				}
 			}
+			
+			//is it a class file?
+			if(filename.endsWith(".class")) {
+				try(Writer.ClsWriter classWriter = fsWriter.classWriter(filename)) {
+					visitClass(opts, classWriter, allBytes);
+					visitedAsSpecial = true;
+				}
+				
+			}
+			
+			//TODO the whole "process all binary files as plain binary files" argument
+			if(!visitedAsSpecial) {
+				try(Writer.BinWriter binWriter = fsWriter.binaryWriter(filename)) {
+					if(filenameMatch) binWriter.writeFileName(filename);
+					visitBin(opts, binWriter, allBytes);
+				}
+			}
+		} else {
+			try(Writer.TxtWriter txtWriter = fsWriter.textWriter(filename)) {
+				if(filenameMatch) txtWriter.writeFileName(filename);
+				visitText(opts, fsWriter.textWriter(filename), allBytes);
+			}
 		}
-
-		opts.out.pop();
+	}
+	
+	static void visitZip(Opts opts, Writer.FsWriter fsvis, byte[] in) throws Exception {
+		//don't want to close the original input stream!
+		ZipInputStream zin = new ZipInputStream(new ByteArrayInputStream(in));
+		
+		ZipEntry entry;
+		while((entry = zin.getNextEntry()) != null)
+			if(!entry.isDirectory())
+				visitInputStream(opts, fsvis, entry.getName(), zin);
+	}
+	
+	static void visitBin(Opts opts, Writer.BinWriter result, byte[] bytes) throws Exception {
+		//TODO don't line-by-line match for binary files
+		// lol string matching over binary files is so broken anyway
+		for(String line : new String(bytes, StandardCharsets.UTF_8).split("\n")) {
+			if(opts.matches(line)) {
+				result.writeBinaryMatch();
+				break;
+			}
+		}
+	}
+	
+	static void visitText(Opts opts, Writer.TxtWriter result, byte[] bytes) throws Exception {
+		for(String line : new String(bytes, StandardCharsets.UTF_8).split("\n")) {
+			if(opts.matches(line)) {
+				result.writeTextMatch(line);
+			}
+		}
+	}
+	
+	static void visitClass(Opts opts, Writer.ClsWriter cls, byte[] bytes) throws Exception {
+		try {
+			ClassReader cr = new ClassReader(bytes);
+			
+			cr.accept(new ClassVisitor(Opcodes.ASM9) {
+				@Override
+				public void visit(int version, int access, String name, String signature, String superName, String[] interfaces) {
+					if(opts.matches(name)) cls.writeClassName(name);
+					
+					super.visit(version, access, name, signature, superName, interfaces);
+				}
+				
+				@Override
+				public FieldVisitor visitField(int access, String name, String descriptor, String signature, Object value) {
+					try(Writer.FldWriter fld = cls.fieldWriter(name)) {
+						if(opts.matches(name)) fld.writeFieldName(name);
+						
+						String fieldValue = value == null ? null : value.toString();
+						if(fieldValue != null && opts.matches(fieldValue)) {
+							fld.writeFieldValue(name, fieldValue);
+						}
+					}
+					return null;
+				}
+				
+				@Override
+				public MethodVisitor visitMethod(int access, String name, String descriptor, String signature, String[] exceptions) {
+					Writer.MthWriter mth = cls.methodWriter(name);
+					if(opts.matches(name)) mth.writeMethodName(name);
+					
+					return new MethodVisitor(Opcodes.ASM9, super.visitMethod(access, name, descriptor, signature, exceptions)) {
+						@Override
+						public void visitLdcInsn(Object value) {
+							if(value != null) {
+								String ldc = value.toString();
+								if(opts.matches(ldc)) mth.writeConstant(name, ldc);
+							}
+						}
+					};
+				}
+			}, ClassReader.EXPAND_FRAMES);
+		} catch (Exception e) {
+			//TODO message
+		}
 	}
 
-	public static boolean looksBinary(byte[] bytes) {
+	protected static boolean looksBinary(byte[] bytes) {
 		//quick check for class files:
 		if(bytes.length >= 4 &&
 			bytes[0] == (byte) 0xCA &&
@@ -119,102 +171,12 @@ public class JarGrep {
 		return false;
 	}
 
-	static boolean processZip(Opts opts, byte[] zipBytes) throws Exception {
-		try(ZipInputStream zip = new ZipInputStream(new ByteArrayInputStream(zipBytes))) {
-			ZipEntry entry;
-			while((entry = zip.getNextEntry()) != null) {
-				if(!entry.isDirectory() && opts.filenameFilter.test(entry.getName()))
-					processFile(opts, entry.getName(), zip);
-			}
-			return true;
-		} catch (IOException e) {
-			opts.out.print("corrupt zip");
-			return false;
-		}
-	}
 
-	static byte[] readAll(InputStream in) throws IOException {
+	protected static byte[] readAll(InputStream in) throws IOException {
 		ByteArrayOutputStream out = new ByteArrayOutputStream();
 		byte[] shuttle = new byte[4096];
 		int read;
 		while((read = in.read(shuttle)) != -1) out.write(shuttle, 0, read);
 		return out.toByteArray();
-	}
-
-	static boolean processClass(Opts opts, byte[] bytes) throws IOException {
-		try {
-			ClassReader cr = new ClassReader(bytes);
-
-			cr.accept(new ClassVisitor(Opcodes.ASM9) {
-				@Override
-				public void visit(int version, int access, String name, String signature, String superName, String[] interfaces) {
-					opts.out.pushClassName(name);
-
-					super.visit(version, access, name, signature, superName, interfaces);
-				}
-
-				@Override
-				public FieldVisitor visitField(int access, String name, String descriptor, String signature, Object value) {
-					opts.out.pushFieldName(name);
-
-					if(opts.searchFieldNames && opts.matches(name)) {
-						opts.out.printCurrent();
-					}
-
-					String fieldValue = value == null ? null : value.toString();
-					if(fieldValue != null && opts.searchFieldValues && opts.matches(fieldValue)) {
-						opts.out.pushFieldValue();
-						opts.out.print(fieldValue);
-						opts.out.pop();
-					}
-
-					opts.out.pop();
-
-					return super.visitField(access, name, descriptor, signature, value);
-				}
-
-				@Override
-				public MethodVisitor visitMethod(int access, String name, String descriptor, String signature, String[] exceptions) {
-					opts.out.pushMethodName(name);
-
-					if(opts.searchMethodNames && opts.matches(name)) {
-						opts.out.printCurrent();
-					}
-
-					if(opts.searchLdc) {
-						opts.out.pushMethodBody();
-
-						return new MethodVisitor(Opcodes.ASM9, super.visitMethod(access, name, descriptor, signature, exceptions)) {
-							@Override
-							public void visitLdcInsn(Object value) {
-								String valueStr = value == null ? null : value.toString();
-								if(valueStr != null && opts.matches(valueStr))
-									opts.out.print("ldc: " + valueStr);
-							}
-
-							@Override
-							public void visitEnd() {
-								super.visitEnd();
-								opts.out.pop(); //method body
-								opts.out.pop(); //method
-							}
-						};
-					} else {
-						opts.out.pop();
-						return super.visitMethod(access, name, descriptor, signature, exceptions);
-					}
-				}
-
-				@Override
-				public void visitEnd() {
-					opts.out.pop();
-				}
-			}, ClassReader.EXPAND_FRAMES);
-		} catch (Exception e) {
-			opts.out.print("corrupt class");
-			return false;
-		}
-
-		return true;
 	}
 }

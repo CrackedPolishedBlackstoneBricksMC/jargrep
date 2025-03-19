@@ -3,7 +3,7 @@ package agency.highlysuspect.jargrep;
 import java.util.function.Predicate;
 import java.util.regex.Pattern;
 
-public class Filter implements Predicate<String> {
+public class FilenameFilter implements Predicate<String> {
 	public Pattern pattern = null;
 	public boolean exclude = false;
 

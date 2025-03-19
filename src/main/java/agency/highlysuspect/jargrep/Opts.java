@@ -1,8 +1,6 @@
 package agency.highlysuspect.jargrep;
 
 import joptsimple.*;
-import joptsimple.internal.Rows;
-import joptsimple.internal.Strings;
 
 import java.io.File;
 import java.io.IOException;
@@ -84,10 +82,8 @@ public class Opts {
 
 	//Filters the files *inside* paths, not the paths themselves
 	//just don't pass a jar as an option if you don't want to search it
-	public Filter filenameFilter = new Filter();
-
-	//How to output
-	public Output out = new Output();
+	public FilenameFilter filenameFilter = new FilenameFilter();
+	
 	public boolean printFilename;
 	
 	public static Opts parse(String... args) {
@@ -108,7 +104,7 @@ public class Opts {
 		
 		@Override
 		public Class<? extends Boolean> valueType() {
-			return Boolean.class;
+			return Boolean.TYPE;
 		}
 		
 		@Override
