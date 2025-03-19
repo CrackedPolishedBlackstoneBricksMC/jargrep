@@ -1,8 +1,10 @@
 # jargrep
 
-Search a collection of jar files.
+Search the content of `.zip` archives and `.jar` files.
 
-For all files, searches filenames and file contents. For class files, searches field and method names, field values, and ldc constants.
+* For all files: it searches filenames and file contents.
+* For `.jar` or `.zip` files: it recursively searches inside the file.
+* For `.class` files: it parses the class with ObjectWeb ASM and searches field and method names, field values, and ldc instructions.
 
 ## Download
 

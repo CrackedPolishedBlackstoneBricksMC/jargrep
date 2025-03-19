@@ -2,7 +2,7 @@ apply plugin: "java"
 apply plugin: "application"
 
 group = "agency.highlysuspect"
-version = "1.0"
+version = "2.0"
 
 java.toolchain.languageVersion = JavaLanguageVersion.of(8)
 compileJava {
@@ -15,16 +15,17 @@ repositories {
 }
 
 dependencies {
-    //testImplementation platform("org.junit:junit-bom:5.9.1")
-    //testImplementation "org.junit.jupiter:junit-jupiter"
-    
     compileOnly "org.jetbrains:annotations:24.1.0"
     
     implementation "org.ow2.asm:asm:9.7"
+    implementation "net.sf.jopt-simple:jopt-simple:6.0-alpha-3" //use this for args probably
+    
+    testImplementation platform("org.junit:junit-bom:5.9.1")
+    testImplementation "org.junit.jupiter:junit-jupiter"
 }
 
 test {
-    //useJUnitPlatform()
+    useJUnitPlatform()
 }
 
 application {
@@ -32,6 +33,8 @@ application {
 }
 
 tasks.register('fat', Jar) {
+    group "build"
+    
     manifest {
         attributes "Main-Class": project.application.mainClass
     }

@@ -1,13 +1,15 @@
 package agency.highlysuspect.jargrep;
 
+import joptsimple.*;
+import joptsimple.internal.Rows;
+import joptsimple.internal.Strings;
+
 import java.io.File;
+import java.io.IOException;
 import java.io.PrintStream;
 import java.nio.file.Path;
 import java.nio.file.Paths;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Iterator;
-import java.util.List;
+import java.util.*;
 import java.util.regex.Pattern;
 
 //looking at options
@@ -87,114 +89,150 @@ public class Opts {
 	//How to output
 	public Output out = new Output();
 	public boolean printFilename;
-
-	public static Opts parse(String[] args) {
-		Opts opts = new Opts();
-
-		String patternToCompile = null;
-		int patternCompileOptions = 0;
-		boolean defaultHBehavior = true;
-
-		OptLexer lexer = new OptLexer(args);
-		for(Opt opt : lexer) {
-			//unlabeled options
-			if(opt.isMisc()) {
-				String s = opt.getMisc();
-				if(patternToCompile == null) {
-					patternToCompile = s;
-				} else {
-					opts.targets.add(Paths.get(s));
-				}
-			}
-
-			else if(opt.is("help")) {
-				printHelpAndExit();
-			}
-
-			else if(opt.is("F", "fixed-strings")) {
-				patternCompileOptions |= Pattern.LITERAL;
-			} else if(opt.is("i", "case-insensitive")) {
-				patternCompileOptions |= Pattern.CASE_INSENSITIVE;
-			}
-
-			//what to search (jargrep options)
-			else if(opt.is("search-filenames")) {
-				opts.searchFilenames = lexer.boolValue(true);
-			} else if(opt.is("search-contents")) {
-				opts.searchFileContents = lexer.boolValue(true);
-			} else if(opt.is("search-classes")) {
-				opts.searchClasses = lexer.boolValue(true);
-			} else if(opt.is("field-names")) {
-				opts.searchFieldNames = lexer.boolValue(true);
-			} else if(opt.is("field-values")) {
-				opts.searchFieldValues = lexer.boolValue(true);
-			} else if(opt.is("method-names")) {
-				opts.searchMethodNames = lexer.boolValue(true);
-			} else if(opt.is("ldc")) {
-				opts.searchLdc = lexer.boolValue(true);
-			}
-
-			//how to search
-			else if(opt.is("binary-files")) {
-				String binmode = lexer.value();
-				if(binmode == null) throw new IllegalArgumentException("Expected binary-files");
-				switch(binmode) {
-					case "binary": opts.binaryMode = BinaryMode.BINARY; break;
-					case "without-match": opts.binaryMode = BinaryMode.WITHOUT_MATCH; break;
-					case "text": opts.binaryMode = BinaryMode.TEXT; break;
-					default: throw new IllegalArgumentException("Unknown binary-files mode " + binmode);
-				}
-			} else if(opt.is("a", "text")) {
-				opts.binaryMode = BinaryMode.TEXT;
-			} else if(opt.is("search-inside-special")) {
-				opts.searchInsideSpecial = lexer.boolValue(false);
-			}
-
-			else if(opt.is("exclude")) {
-				opts.filenameFilter.pattern = Pattern.compile(lexer.value());
-				opts.filenameFilter.exclude = true;
-			} else if(opt.is("include")) {
-				opts.filenameFilter.pattern = Pattern.compile(lexer.value());
-				opts.filenameFilter.exclude = false;
-			}
-
-			//how to output
-			else if(opt.is("H", "with-filename")) {
-				defaultHBehavior = false;
-				opts.printFilename = true;
-			} else if(opt.is("h", "no-filename")) {
-				defaultHBehavior = false;
-				opts.printFilename = false;
-			} else {
-				System.err.println("Unrecognized option: " + opt);
-				printUsageAndExit();
-			}
+	
+	public static Opts parse(String... args) {
+		return new Opts().from(args);
+	}
+	
+	private static final class BooleanConv implements ValueConverter<Boolean> {
+		public static BooleanConv I = new BooleanConv();
+		@Override
+		public Boolean convert(String s) {
+			return Boolean.valueOf(s);
 		}
+		
+		@Override
+		public String revert(Object value) {
+			return value instanceof Boolean ? ((Boolean) value).toString() : null;
+		}
+		
+		@Override
+		public Class<? extends Boolean> valueType() {
+			return Boolean.class;
+		}
+		
+		@Override
+		public String valuePattern() {
+			return null;
+		}
+	}
 
+	public Opts from(String... args) {
+		
+		OptionParser parser = new OptionParser(true);
+		OptionSpec<Void> help = parser.accepts("help",  "Print usage.").forHelp();
+		
+		//how to match
+		OptionSpec<Void> fixedStrings = parser.acceptsAll(Arrays.asList("F", "fixed-strings"));
+		OptionSpec<Void> caseInsensitive = parser.acceptsAll(Arrays.asList("i", "case-insensitive"));
+		
+		//how to search
+		OptionSpec<Boolean> searchFilenames = parser.accepts("search-filenames", "Report matches in the names of files.")
+			.withOptionalArg().withValuesConvertedBy(BooleanConv.I).defaultsTo(true);
+		OptionSpec<Boolean> searchFileContents = parser.accepts("search-contents", "Look inside text files.")
+			.withOptionalArg().withValuesConvertedBy(BooleanConv.I).defaultsTo(true);
+		OptionSpec<Boolean> searchClasses = parser.accepts("search-classes", "Look inside class files.")
+			.withOptionalArg().withValuesConvertedBy(BooleanConv.I).defaultsTo(true);
+		OptionSpec<Boolean> searchFieldNames = parser.accepts("field-names", "Search field names inside classes.")
+			.availableIf(searchClasses)
+			.withOptionalArg().withValuesConvertedBy(BooleanConv.I).defaultsTo(true);
+		OptionSpec<Boolean> searchFieldValues = parser.accepts("field-values", "Search constant field assignments inside classes.")
+			.availableIf(searchClasses)
+			.withOptionalArg().withValuesConvertedBy(BooleanConv.I).defaultsTo(true);
+		OptionSpec<Boolean> searchMethodNames = parser.accepts("method-names", "Search method names.")
+			.availableIf(searchClasses)
+			.withOptionalArg().withValuesConvertedBy(BooleanConv.I).defaultsTo(true);
+		OptionSpec<Boolean> searchLdc = parser.accepts("ldc", "Search LDC instructions inside methods (~string constants).")
+			.availableIf(searchClasses)
+			.withOptionalArg().withValuesConvertedBy(BooleanConv.I).defaultsTo(true);
+		
+		//where to search
+		OptionSpecBuilder includeB = parser.accepts("include", "Only search files whos names match this pattern.");
+		OptionSpec<String> exclude = parser.accepts("exclude", "Don't search files whos names match this pattern.").availableUnless(includeB).withRequiredArg();
+		OptionSpec<String> include = includeB.availableUnless(exclude).withRequiredArg();
+		
+		//output
+		OptionSpec<Void> withFilename = parser.acceptsAll(Arrays.asList("with-filename", "H"));
+		OptionSpec<Void> noFilename = parser.acceptsAll(Arrays.asList("no-filename", "h"));
+		
+		NonOptionArgumentSpec<String> nonopts = parser.nonOptions("PATTERN FILES*");
+		
+		OptionSet set = parser.parse(args);
+		
+		if(set.has(help)) {
+			try {
+				parser.printHelpOn(System.out);
+			} catch (IOException e) {
+				throw new RuntimeException(e); //really
+			}
+			System.exit(1);
+		}
+		
+		String patternToCompile = null;
+		
+		for(Object o : set.nonOptionArguments()) {
+			String s = o.toString();
+			if(s.isEmpty()) continue;
+			if(patternToCompile == null) patternToCompile = s;
+			else targets.add(Paths.get(s));
+		}
+		
+		int patternCompileOptions = 0;
+		patternCompileOptions |= set.has(fixedStrings) ? Pattern.LITERAL : 0;
+		patternCompileOptions |= set.has(caseInsensitive) ? Pattern.CASE_INSENSITIVE : 0;
+		
+		this.searchFilenames = set.valueOf(searchFilenames);
+		this.searchFileContents = set.valueOf(searchFileContents);
+		this.searchClasses = set.valueOf(searchClasses);
+		this.searchFieldNames = set.valueOf(searchFieldNames);
+		this.searchFieldValues = set.valueOf(searchFieldValues);
+		this.searchMethodNames = set.valueOf(searchMethodNames);
+		this.searchLdc = set.valueOf(searchLdc);
+
+		//TODO:
+		//if binary-files is set, set binarymode from it
+		//else if '-a' or '--text' is set, set to text
+		this.binaryMode = BinaryMode.BINARY;
+		
+		//TODO what's up with search-inside-special about
+		this.searchInsideSpecial = true;
+		
+		if(set.has(exclude)) {
+			this.filenameFilter.pattern = Pattern.compile(set.valueOf(exclude));
+			this.filenameFilter.exclude = true;
+		} else if(set.has(include)) {
+			this.filenameFilter.pattern = Pattern.compile(set.valueOf(include));
+			this.filenameFilter.exclude = false;
+		}
+		
+		if(set.has(withFilename)) {
+			printFilename = true;
+		} else if(set.has(noFilename)) {
+			printFilename = false;
+		} else {
+			printFilename = targets.size() > 1;
+		}
+		
 		if(patternToCompile == null) {
 			throw new IllegalArgumentException("No pattern");
 		}
-		opts.grep = Pattern.compile(patternToCompile, patternCompileOptions);
+		grep = Pattern.compile(patternToCompile, patternCompileOptions);
 
-		if(opts.targets.isEmpty()) {
+		if(targets.isEmpty()) {
 			//use all jars in current directory
 			File[] cwdJars = new File(".").listFiles((f, name) ->
 				name.endsWith(".jar") || name.endsWith(".zip") || name.endsWith(".class"));
 			if(cwdJars != null && cwdJars.length > 0) {
-				Arrays.stream(cwdJars).map(File::toPath).forEach(opts.targets::add);
+				Arrays.stream(cwdJars).map(File::toPath).forEach(targets::add);
 			}
 
-			if(opts.targets.isEmpty()) {
+			if(targets.isEmpty()) {
 				System.err.println("No files specified on command line, and no jars/zips/classes in current directory.");
 				printUsageAndExit();
 			}
 		}
 
-		if(defaultHBehavior) {
-			opts.printFilename = opts.targets.size() > 1;
-		}
-
-		return opts;
+		return this;
 	}
 
 	public boolean matches(String s) {
@@ -210,6 +248,7 @@ public class Opts {
 		System.exit(1);
 	}
 
+	//TODO this is a much better help output than the joptsimple one LOL, i should use it
 	private static void printHelpAndExit() {
 		printy(System.out,
 			"Usage: jargrep [OPTION]... PATTERN [FILES...]",
@@ -251,138 +290,5 @@ public class Opts {
 	private static void printy(PrintStream out, String... lines) {
 		for(String line : lines) out.println(line);
 	}
-
-	private interface Opt {
-		default boolean is(String... xs) {
-			if(this instanceof Named) {
-				for(String s : xs) {
-					if(((Named) this).opt.equals(s)) return true;
-				}
-			}
-			return false;
-		}
-		default boolean isMisc() {
-			return this instanceof Misc;
-		}
-		default String getMisc() {
-			return ((Misc) this).etc;
-		}
-	}
-	private static class Named implements Opt {
-		Named(String opt) { this.opt = opt; }
-		String opt;
-		@Override public String toString() { return "Opt " + opt; }
-	}
-	private static class Misc implements Opt {
-		Misc(String etc) { this.etc = etc; }
-		String etc;
-		@Override public String toString() { return "Misc " + etc; }
-	}
-
-	private static class OptLexer implements Iterator<Opt>, Iterable<Opt> {
-		public OptLexer(String[] args) {
-			this.args = args;
-		}
-
-		private final String[] args;
-		private int idx, subitem;
-
-		private static final int MODE_READY = 0;
-		private static final int MODE_SHORT = 1;
-		private static final int MODE_MISCONLY = 2;
-
-		private int mode = MODE_READY;
-
-		@Override
-		public boolean hasNext() {
-			return idx < args.length;
-		}
-
-		@Override
-		public Opt next() {
-			while(true) {
-				String currentArg = args[idx];
-				switch(mode) {
-					case MODE_READY:
-						if(currentArg.equals("--")) { //separator between options and nonoptions
-							mode = MODE_MISCONLY;
-							idx++;
-							continue;
-						} else if(currentArg.startsWith("--")) { //long option
-							idx++;
-							return new Named(currentArg.substring(2));
-						} else if(currentArg.startsWith("-")) { //short option
-							mode = MODE_SHORT;
-							subitem = 1;
-							continue;
-						} else {
-							idx++;
-							return new Misc(currentArg);
-						}
-					case MODE_SHORT:
-						Named shortOpt = new Named(String.valueOf(currentArg.charAt(subitem)));
-						subitem++;
-						if(subitem == currentArg.length()) {
-							//parsed all short options
-							subitem = 0;
-							mode = MODE_READY;
-							idx++;
-						}
-
-						return shortOpt;
-					case MODE_MISCONLY:
-						idx++;
-						return new Misc(currentArg);
-				}
-			}
-		}
-
-		public String value() {
-			if(mode == MODE_SHORT) {
-				if(subitem != args[idx].length()) {
-					String rest = args[idx].substring(subitem);
-					mode = MODE_READY;
-					idx++;
-					return rest;
-				}
-			} else {
-				if(hasNext() && args[idx + 1].charAt(0) != '-') return args[idx++];
-			}
-
-			return null;
-		}
-
-		public boolean boolValue(boolean def) {
-			if(mode == MODE_SHORT) {
-				String value = value();
-				return value == null ? def : flag(value);
-			} else if(hasNext() && isFlag(args[idx])) {
-				idx++;
-				return flag(args[idx - 1]);
-			} else return def;
-		}
-
-		private boolean isFlag(String s) {
-			switch(s) {
-				case "true": case "yes": case "on": case "false": case "no": case "off": return true;
-				default: return false;
-			}
-		}
-
-		private boolean flag(String s) {
-			switch(s) {
-				case "true":
-				case "yes":
-				case "on":
-					return true;
-				default:
-					return false;
-			}
-		}
-
-		@Override
-		public Iterator<Opt> iterator() {
-			return this;
-		}
-	}
+	
 }
