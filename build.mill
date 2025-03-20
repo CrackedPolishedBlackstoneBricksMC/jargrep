@@ -5,6 +5,7 @@ import mill.api.JarManifest
 import mill.define.ModuleRef
 import mill.javalib._
 import mill.util.Jvm
+import os.Path
 
 trait Defs {
   def version = "2.0"
@@ -68,37 +69,27 @@ object JargrepTea extends JavaModule with Defs {
 
   override def ivyDeps: T[Agg[Dep]] = super.ivyDeps() ++ Agg(teavmJsoApis, teavmJso)
 
-  //classpath for running the teavm cli tool
-  def teaClasspath: T[Agg[PathRef]] = Task {
-    defaultResolver().resolveDeps(Agg(teavmCli)) ++ Agg(assembly())
+  //just slap teavm-cli on the classpath with the assembly jar, it'll find it
+  def teaClasspath: T[Seq[Path]] = Task {
+    (defaultResolver().resolveDeps(Agg(teavmCli)) ++ Agg(assembly()))
+      .map(_.path).toSeq
   }
 
-  def teaUsage = Task {
-    Jvm.callProcess(
-      mainClass = "org.teavm.cli.TeaVMRunner",
-      classPath = defaultResolver().resolveDeps(Agg(teavmCli)).map(_.path).toSeq,
-    )
-    ()
-  }
-
-  //running the teavm cli tool
   def brewTea = Task {
     def dst = "jargrep.js"
     def dstFull = Task.dest / dst
 
     Jvm.callProcess(
       mainClass = "org.teavm.cli.TeaVMRunner",
-      classPath = teaClasspath().map(_.path).toSeq,
+      classPath = teaClasspath(),
       cwd = Task.dest,
       mainArgs = Seq(
-        "-t", "javascript/js",
-        "-f", dst,
+        "-t", "javascript/js", "-f", dst,
         "agency.highlysuspect.jargrep.TeaEntrypoint"
       )
     )
 
-    println("tea is brewed!")
-    println(dstFull)
+    println("tea is brewed! ", dstFull)
     PathRef(dstFull)
   }
 
@@ -114,17 +105,11 @@ object JargrepTea extends JavaModule with Defs {
     PathRef(Task.dest)
   }
 
-  //ok annoyingly on windows cmd, ctrl-c leaves the server dangling
-  //might just be best to manually serve in another terminal window
-  //OH YEAH and mill only permits one instance at a time lol
-//  def serveTea = Task {
-//    os.proc("miniserve", "-v", "--index", "index.html")
-//      .call(
-//        stdin = os.Inherit,
-//        stdout = os.Inherit,
-//        stderr = os.Inherit,
-//        cwd = packageTea().path
-//      )
-//    ()
-//  }
+  //i have the memory of a goldfish
+  def teaUsage = Task {
+    Jvm.callProcess(
+      mainClass = "org.teavm.cli.TeaVMRunner",
+      classPath = defaultResolver().resolveDeps(Agg(teavmCli)).map(_.path).toSeq,
+    )
+  }
 }
