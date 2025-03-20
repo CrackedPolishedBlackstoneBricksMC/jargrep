@@ -1,4 +1,5 @@
-import agency.highlysuspect.jargrep.Opts;
+import agency.highlysuspect.jargrep.Cli;
+import agency.highlysuspect.jargrep.SearchOpts;
 import static org.junit.jupiter.api.Assertions.*;
 
 import org.junit.jupiter.api.Test;
@@ -15,23 +16,29 @@ public class TestArgs {
 	
 	@Test
 	public void doesntCrashLol() {
-		Opts opts = Opts.parse("hey", "./foo");
-		assertEquals("hey", opts.grep.toString());
-		assertEquals(of(Paths.get("./foo")), opts.targets);
+		Cli cli = new Cli();
+		cli.parseOpts("hey", "./foo");
+		
+		assertEquals("hey", cli.opts.grep.toString());
+		assertEquals(of(Paths.get("./foo")), cli.targets);
 	}
 	
 	@Test
 	public void blankLeading() {
-		Opts opts = Opts.parse("", "hey", "./foo");
-		assertEquals("hey", opts.grep.toString());
-		assertEquals(of(Paths.get("./foo")), opts.targets);
+		Cli cli = new Cli();
+		cli.parseOpts("", "hey", "./foo");
+		
+		assertEquals("hey", cli.opts.grep.toString());
+		assertEquals(of(Paths.get("./foo")), cli.targets);
 	}
 	
 	@Test
 	public void blankTrailing() {
-		Opts opts = Opts.parse("hey", "./foo", "");
-		assertEquals("hey", opts.grep.toString());
-		assertEquals(of(Paths.get("./foo")), opts.targets);
+		Cli cli = new Cli();
+		cli.parseOpts("hey", "./foo", "");
+		
+		assertEquals("hey", cli.opts.grep.toString());
+		assertEquals(of(Paths.get("./foo")), cli.targets);
 	}
 	
 }

@@ -13,6 +13,7 @@ public interface Writer extends AutoCloseable {
 	
 	interface FileWriter extends Writer {
 		void writeFileName(String filename);
+		void writeDirectoryName(String dirName);
 	}
 	
 	interface FsWriter extends FileWriter {

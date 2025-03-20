@@ -95,7 +95,7 @@ public class ConsoleWriter implements FsWriter, TxtWriter, BinWriter, ClsWriter,
 	
 	@Override
 	public void writeClassName(String className) {
-		child("class name: " + className);
+		child("class: " + className);
 	}
 	
 	@Override
@@ -106,6 +106,12 @@ public class ConsoleWriter implements FsWriter, TxtWriter, BinWriter, ClsWriter,
 	@Override
 	public void writeFileName(String filename) {
 		printHeader();
+	}
+	
+	@Override
+	public void writeDirectoryName(String dirName) {
+		//TODO kind of a hack
+		child("directory " + dirName);
 	}
 	
 	@Override

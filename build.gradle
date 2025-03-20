@@ -29,7 +29,7 @@ test {
 }
 
 application {
-    mainClass = "agency.highlysuspect.jargrep.JarGrep"
+    mainClass = "agency.highlysuspect.jargrep.Cli"
 }
 
 tasks.register('fat', Jar) {
@@ -37,6 +37,7 @@ tasks.register('fat', Jar) {
     
     manifest {
         attributes "Main-Class": project.application.mainClass
+        attributes "Implementation-Version": project.version
     }
     archiveClassifier = "all"
     from {
