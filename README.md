@@ -1,32 +1,42 @@
 # jargrep
 
-Search the content of `.zip` archives and `.jar` files.
+A recursive Java archive searching tool. Searches inside `.zip`s and `.jar`s, and parses `.class`es for richer information.
 
-* For all files: it searches filenames and file contents.
-* For `.jar` or `.zip` files: it recursively searches inside the file.
-* For `.class` files: it parses the class with ObjectWeb ASM and searches field and method names, field values, and ldc instructions.
+```console
+$ java -jar jargrep.jar "Mapper function"
+archive sodium-fabric-0.5.8+mc1.20.1.jar
+-> archive META-INF/jars/fabric-api-base-0.4.30+7abfd51577.jar
+  |-> class net/fabricmc/fabric/api/util/TriState.class
+  |  |-> method map
+  |  |  |-> ldc: Mapper function cannot be null
+```
 
 ## Download
 
-[Go to the releases tab.](https://github.com/quat1024/jargrep/releases).
-
-## Compilation
-
-`./gradlew fat`
-
-The built fatjar will be in `./build/libs`.
+[Go to the releases tab.](https://github.com/quat1024/jargrep/releases)
 
 ## Installation
 
 * Install Java 8 or later.
-* Download `jargrep-(version)-all.jar` and put it somewhere on your system. You can rename it.
-* If you want to install it system-wide, set up a shell alias:
-  * `alias jargrep="java -jar /path/to/jargrep.jar"`
+* [Download `jargrep-`*`(version)`*`-all.jar`](https://github.com/quat1024/jargrep/releases) and put it somewhere on your system. You can rename it.
+* Then run `java -jar /path/to/jargrep.jar ` *`[arguments...]`*
+
+<details><summary>Advanced</summary>
+
+If you want to install it system-wide, or you're sick of typing `java -jar`, set up a shell alias. Try `alias jargrep="java -jar /path/to/jargrep.jar"`.
+
+</details>
 
 ## Usage
 
-`java -jar jargrep.jar [options] pattern [files...]?`
+`java -jar jargrep.jar [options...] pattern [files...]?`
 
-See `jargrep --help`. The syntax is kinda similar to `grep -e`, although of course fewer things are supported. 
+For example, to search for the pattern 'needle' inside 'haystack.jar', try
 
-If you don't specify any files, all jars/zips/classes in the current directory will be searched. (Might include jargrep itself!) The pattern is parsed as a standard java regex with `Pattern.compile`. 
+    jargrep "needle" haystack.jar
+
+If you don't specify any files to search, jargrep will search all .jar, .zip, and .class files in the current directory (including itself!)
+
+## Compilation
+
+Run `./gradlew fat`. The built `-all` jar will reside in `./build/libs`.
