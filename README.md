@@ -37,6 +37,28 @@ For example, to search for the pattern 'needle' inside 'haystack.jar', try
 
 If you don't specify any files to search, jargrep will search all .jar, .zip, and .class files in the current directory (including itself!)
 
+### Complete option listing
+
+|                               Opt | Default | Desc                                                                                |
+|----------------------------------:|:-------:|:------------------------------------------------------------------------------------|
+|                      `-?, --help` |         | Print this help message.                                                            |
+|               `-V, -v, --version` |         | Print version.                                                                      |
+|              `-F, --fixed-string` |         | Enable Pattern.LITERAL mode, searching for the string verbatim.                     |
+|          `-i, --case-insensitive` |         | Enable case-insensitive mode.                                                       |
+|             `--include <pattern>` |         | When searching archives, only look in files matching this pattern.                  |
+|             `--exclude <pattern>` |         | When searching archives, don't look in files matching this pattern.                 |
+|    `--search-filenames [boolean]` |  true   | Report matches in the names of files.                                               |
+|         `--search-text [boolean]` |  true   | Report matches inside text files.                                                   |
+|     `--search-binaries [boolean]` |  true   | Report matches inside binary files.                                                 |
+|     `--search-archives [boolean]` |  true   | Report matches inside nested archives.                                              |
+|      `--search-classes [boolean]` |  true   | Report matches inside class files.                                                  |
+|       `--search-fields [boolean]` |  true   | Report matches inside class field names.                                            |
+| `--search-field-values [boolean]` |  true   | Report matches inside some(!) final fields.                                         |
+|      `--search-methods [boolean]` |  true   | Report matches inside class method names.                                           |
+|         `--search-ldcs [boolean]` |  true   | Report matches in LDC constants inside methods.                                     |
+|     `--alwaysRawSearch [boolean]` |  false  | Also perform a raw search over binaries even if they can be parsed as classes/zips. |
+
+
 ## Compilation
 
 Run `./gradlew fat`. The built `-all` jar will reside in `./build/libs`.
