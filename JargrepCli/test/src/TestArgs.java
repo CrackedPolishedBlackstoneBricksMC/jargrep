@@ -1,8 +1,7 @@
 import agency.highlysuspect.jargrep.Cli;
-import agency.highlysuspect.jargrep.SearchOpts;
-import static org.junit.jupiter.api.Assertions.*;
 
 import org.junit.jupiter.api.Test;
+import static org.junit.jupiter.api.Assertions.*;
 
 import java.nio.file.Paths;
 import java.util.Arrays;

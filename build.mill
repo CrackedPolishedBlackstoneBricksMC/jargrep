@@ -1,0 +1,58 @@
+package build
+
+import mill._
+import mill.api.JarManifest
+import mill.define.ModuleRef
+import mill.javalib._
+
+trait Defs {
+  def version = "2.0"
+
+  //toolchains
+  def java8: ModuleRef[ZincWorkerModule] = ModuleRef(new ZincWorkerModule {
+    override def jvmId = "temurin:8.0-442"
+  })
+  def currentJava: ModuleRef[ZincWorkerModule] = ModuleRef(ZincWorkerModule)
+
+  //deps
+  def jetbrainsAnnotations = ivy"org.jetbrains:annotations:24.1.0"
+  def asm = ivy"org.ow2.asm:asm:9.7"
+  def joptSimple = ivy"net.sf.jopt-simple:jopt-simple:6.0-alpha-3"
+}
+
+object Jargrep extends JavaModule with Defs {
+  override def compileIvyDeps: T[Agg[Dep]] = Agg(jetbrainsAnnotations)
+  override def ivyDeps: T[Agg[Dep]] = Agg(asm)
+}
+
+object JargrepCli extends JavaModule with Defs {
+  //The CLI is compatible with Java 8.
+  override def zincWorker: ModuleRef[ZincWorkerModule] = java8
+
+  //Doing this 'multiloader-style' (not using a moduleDep) so that we
+  //are free to compile the main module against Java 21.
+  //override def moduleDeps: Seq[JavaModule] = Seq(Jargrep)
+  override def sources: T[Seq[PathRef]] = super.sources() ++ Jargrep.sources()
+
+  override def compileIvyDeps: T[Agg[Dep]] =
+    Jargrep.compileIvyDeps() ++ //multiloader style
+    Agg(jetbrainsAnnotations)
+  override def ivyDeps: T[Agg[Dep]] =
+    Jargrep.ivyDeps() ++ //multiloader style
+    Agg(joptSimple)
+
+  override def manifest: T[JarManifest] = super.manifest().add(
+    ("Implementation-Version", version)
+  )
+
+  override def assembly: T[PathRef] = Task {
+    val renamed = Task.dest / s"jargrep-${version}-all.jar"
+    os.move(super.assembly().path, renamed)
+    PathRef(renamed)
+  }
+
+  object test extends JavaTests with TestModule.Junit5 {
+    //pin the version
+    override def bomIvyDeps: T[Agg[Dep]] = super.bomIvyDeps() ++ Agg(ivy"org.junit:junit-bom:5.12.1")
+  }
+}
