@@ -1,0 +1,3 @@
+*.mill linguist-language=Scala
+mill linguist-vendored
+mill.bat linguist-vendored
