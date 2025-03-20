@@ -63,6 +63,8 @@ If you don't specify any files to search, jargrep will search all .jar, .zip, an
 
 ~~Run `./gradlew fat`. The built `-all` jar will reside in `./build/libs`.~~ ive had enough of gradle lol
 
-Run `./mill JargrepCli.assembly`. The built fatjar will reside in `./out/JargrepCli/assembly.dest/out.jar`.
+Offline: Run `./mill JargrepCli.assembly`. The built fatjar will reside in `./out/JargrepCli/assembly.dest/out.jar`.
+
+Online: Run `./mill JargrepTea.packageTea`. Serve the contents of `./out/JargrepTea/packageTea.dest/` with a web server.
 
 Test with `./mill __.test` (two underscores).

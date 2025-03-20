@@ -4,6 +4,7 @@ import mill._
 import mill.api.JarManifest
 import mill.define.ModuleRef
 import mill.javalib._
+import mill.util.Jvm
 
 trait Defs {
   def version = "2.0"
@@ -18,6 +19,11 @@ trait Defs {
   def jetbrainsAnnotations = ivy"org.jetbrains:annotations:24.1.0"
   def asm = ivy"org.ow2.asm:asm:9.7"
   def joptSimple = ivy"net.sf.jopt-simple:jopt-simple:6.0-alpha-3"
+
+  def teavmCore = ivy"org.teavm:teavm-core:0.11.0"
+  def teavmCli = ivy"org.teavm:teavm-cli:0.11.0"
+  def teavmJsoApis = ivy"org.teavm:teavm-jso-apis:0.11.0"
+  def teavmJso = ivy"org.teavm:teavm-jso:0.11.0"
 }
 
 object Jargrep extends JavaModule with Defs {
@@ -35,14 +41,14 @@ object JargrepCli extends JavaModule with Defs {
   override def sources: T[Seq[PathRef]] = super.sources() ++ Jargrep.sources()
 
   override def compileIvyDeps: T[Agg[Dep]] =
-    Jargrep.compileIvyDeps() ++ //multiloader style
-    Agg(jetbrainsAnnotations)
+    Jargrep.compileIvyDeps() //multiloader style
   override def ivyDeps: T[Agg[Dep]] =
     Jargrep.ivyDeps() ++ //multiloader style
     Agg(joptSimple)
 
   override def manifest: T[JarManifest] = super.manifest().add(
-    ("Implementation-Version", version)
+    ("Implementation-Version", version),
+    ("Main-Class", "agency.highlysuspect.jargrep.Cli")
   )
 
   override def assembly: T[PathRef] = Task {
@@ -55,4 +61,70 @@ object JargrepCli extends JavaModule with Defs {
     //pin the version
     override def bomIvyDeps: T[Agg[Dep]] = super.bomIvyDeps() ++ Agg(ivy"org.junit:junit-bom:5.12.1")
   }
+}
+
+object JargrepTea extends JavaModule with Defs {
+  override def moduleDeps: Seq[JavaModule] = Seq(Jargrep)
+
+  override def ivyDeps: T[Agg[Dep]] = super.ivyDeps() ++ Agg(teavmJsoApis, teavmJso)
+
+  //classpath for running the teavm cli tool
+  def teaClasspath: T[Agg[PathRef]] = Task {
+    defaultResolver().resolveDeps(Agg(teavmCli)) ++ Agg(assembly())
+  }
+
+  def teaUsage = Task {
+    Jvm.callProcess(
+      mainClass = "org.teavm.cli.TeaVMRunner",
+      classPath = defaultResolver().resolveDeps(Agg(teavmCli)).map(_.path).toSeq,
+    )
+    ()
+  }
+
+  //running the teavm cli tool
+  def brewTea = Task {
+    def dst = "jargrep.js"
+    def dstFull = Task.dest / dst
+
+    Jvm.callProcess(
+      mainClass = "org.teavm.cli.TeaVMRunner",
+      classPath = teaClasspath().map(_.path).toSeq,
+      cwd = Task.dest,
+      mainArgs = Seq(
+        "-t", "javascript/js",
+        "-f", dst,
+        "agency.highlysuspect.jargrep.TeaEntrypoint"
+      )
+    )
+
+    println("tea is brewed!")
+    println(dstFull)
+    PathRef(dstFull)
+  }
+
+  def packageTea = Task {
+    def brewedTea = brewTea()
+    def resourcesDirs = resources()
+
+    for(rdir <- resourcesDirs) {
+      os.copy(rdir.path, Task.dest, createFolders = true, mergeFolders = true)
+    }
+    os.copy.into(brewedTea.path, Task.dest)
+
+    PathRef(Task.dest)
+  }
+
+  //ok annoyingly on windows cmd, ctrl-c leaves the server dangling
+  //might just be best to manually serve in another terminal window
+  //OH YEAH and mill only permits one instance at a time lol
+//  def serveTea = Task {
+//    os.proc("miniserve", "-v", "--index", "index.html")
+//      .call(
+//        stdin = os.Inherit,
+//        stdout = os.Inherit,
+//        stderr = os.Inherit,
+//        cwd = packageTea().path
+//      )
+//    ()
+//  }
 }
