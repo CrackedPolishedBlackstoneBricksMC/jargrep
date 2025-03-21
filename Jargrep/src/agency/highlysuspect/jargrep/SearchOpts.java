@@ -69,11 +69,12 @@ public class SearchOpts {
 	public static final int SEARCH_CLASS_FIELD_VALUES = 64;
 	public static final int SEARCH_CLASS_METHOD_NAMES = 128;
 	public static final int SEARCH_CLASS_METHOD_VALUES = 256;
+	public static final int SEARCH_CLASS_USAGES = 1024; //yes theres a gap in the numbering
 	
 	public static final int ALWAYS_DO_RAW_SEARCH = 512;
 	
 	public FilenameFilter filenameFilter = new FilenameFilter();
-	public int searchFlags = SEARCH_FILENAMES | SEARCH_PLAINTEXT_FILES | SEARCH_BINARY_FILES | SEARCH_ARCHIVES | SEARCH_CLASSES | SEARCH_CLASS_FIELD_NAMES | SEARCH_CLASS_FIELD_VALUES | SEARCH_CLASS_METHOD_NAMES | SEARCH_CLASS_METHOD_VALUES;
+	public int searchFlags = SEARCH_FILENAMES | SEARCH_PLAINTEXT_FILES | SEARCH_BINARY_FILES | SEARCH_ARCHIVES | SEARCH_CLASSES | SEARCH_CLASS_FIELD_NAMES | SEARCH_CLASS_FIELD_VALUES | SEARCH_CLASS_METHOD_NAMES | SEARCH_CLASS_METHOD_VALUES | SEARCH_CLASS_USAGES;
 	
 	public void set(int flag, boolean value) {
 		if(value) searchFlags |= flag;

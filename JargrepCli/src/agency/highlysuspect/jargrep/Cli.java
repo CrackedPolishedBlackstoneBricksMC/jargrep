@@ -78,17 +78,15 @@ public class Cli {
 	final OptionSpec<Boolean> searchClass = trueflag(accepts("search-classes")
 		.comment("Report matches inside class files."));
 	final OptionSpec<Boolean> searchField = trueflag(accepts("search-fields")
-		.comment("Report matches inside class field names.")
-		.availableIf(searchClass));
+		.comment("Report matches inside class field names."));
 	final OptionSpec<Boolean> searchFieldValue = trueflag(accepts("search-field-values")
-		.comment("Report matches inside some(!) final fields.")
-		.availableIf(searchClass));
+		.comment("Report matches inside some(!) final fields."));
 	final OptionSpec<Boolean> searchMethod = trueflag(accepts("search-methods")
-		.comment("Report matches inside class method names.")
-		.availableIf(searchClass));
+		.comment("Report matches inside class method names."));
 	final OptionSpec<Boolean> searchLdc = trueflag(accepts("search-ldcs")
-		.comment("Report matches in LDC constants inside methods.")
-		.availableIf(searchClass));
+		.comment("Report matches in LDC constants inside methods."));
+	final OptionSpec<Boolean> searchUsages = trueflag(accepts("search-usage") //TODO default this to false, very noisy.
+		.comment("Attempt to report matches inside GET/PUT and INVOKE instructions inside methods."));
 	
 	final OptionSpec<Boolean> alwaysRawSearch = falseflag(accepts("alwaysRawSearch")
 		.comment("Also perform a raw search over binaries even if they can be parsed as classes/zips."));
@@ -112,7 +110,7 @@ public class Cli {
 			include, exclude,
 			recurseDirs,
 			searchFilename, searchPlaintext, searchBinary, searchArchive,
-			searchClass, searchField, searchFieldValue, searchMethod, searchLdc,
+			searchClass, searchField, searchFieldValue, searchMethod, searchLdc, searchUsages,
 			alwaysRawSearch,
 			parser.nonOptions() //required for the joptsimple internals im abusing
 		));
@@ -133,7 +131,10 @@ public class Cli {
 		return builder.withOptionalArg().withValuesConvertedBy(BooleanConv.I).defaultsTo(true);
 	}
 	OptionSpec<Boolean> falseflag(OptionSpecBuilder builder) {
-		return builder.withOptionalArg().withValuesConvertedBy(BooleanConv.I).defaultsTo(false);
+		//if it defaults to false, you gotta pass the argument
+		//TODO this is just because i can't tell the difference between --flag and --flag=false in joptsimple api
+		// if --flag's default value is false
+		return builder.withRequiredArg().withValuesConvertedBy(BooleanConv.I).defaultsTo(false);
 	}
 	
 	String getInvocation() {
@@ -259,6 +260,7 @@ public class Cli {
 			SearchOpts.SEARCH_CLASS_FIELD_VALUES,
 			SearchOpts.SEARCH_CLASS_METHOD_NAMES,
 			SearchOpts.SEARCH_CLASS_METHOD_VALUES,
+			SearchOpts.SEARCH_CLASS_USAGES,
 			SearchOpts.ALWAYS_DO_RAW_SEARCH
 		};
 		OptionSpec<?>[] specs = {
@@ -271,10 +273,12 @@ public class Cli {
 			searchFieldValue,
 			searchMethod,
 			searchLdc,
+			searchUsages,
 			alwaysRawSearch
 		};
 		for(int i = 0; i < flags.length; i++) {
-			opts.set(flags[i], set.valueOf((OptionSpec<Boolean>) specs[i]));
+			OptionSpec<Boolean> spec = (OptionSpec<Boolean>) specs[i];
+			opts.set(flags[i], set.valueOf(spec));
 		}
 		
 		if(set.has(exclude)) {

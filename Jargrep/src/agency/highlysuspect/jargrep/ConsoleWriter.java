@@ -131,6 +131,16 @@ public class ConsoleWriter implements FsWriter, TxtWriter, BinWriter, ClsWriter,
 	
 	@Override
 	public void writeConstant(String name, String constant) {
-		child("ldc: " + constant);
+		child("constant: " + constant);
+	}
+
+	@Override
+	public void writeFieldAccess(String name, FieldAccessType type, String fieldOwner, String fieldName, String fieldDesc) {
+		child(type.name() + ": " + fieldOwner + "#" + fieldName + " " + fieldDesc);
+	}
+
+	@Override
+	public void writeMethodAccess(String name, MethodCallType type, String methodOwner, String methodName, String methodDesc) {
+		child(type.name() + ": " + methodOwner + "#" + methodName + " " + methodDesc);
 	}
 }
