@@ -4,13 +4,16 @@ import joptsimple.*;
 
 import java.io.BufferedInputStream;
 import java.io.File;
+import java.io.IOException;
 import java.io.InputStream;
+import java.nio.file.FileVisitResult;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.nio.file.SimpleFileVisitor;
+import java.nio.file.attribute.BasicFileAttributes;
 import java.util.*;
 import java.util.regex.Pattern;
-import java.util.stream.Stream;
 
 public class Cli {
 	public static void main(String[] args) throws Exception {
@@ -24,32 +27,24 @@ public class Cli {
 		
 		try(Writer.FsWriter writer = new ConsoleWriter(System.out)) {
 			for(Path target : targets) {
-				if(recurseIntoTargets) {
-					//recursive search with Files.walk
-					try(Stream<Path> walkedS = Files.walk(target)) {
-						walkedS.forEach(walked -> doFile(jg, walked, target.relativize(walked), writer));
-					}
-				} else if(Files.isDirectory(target)) {
-					//it's a directory; do non-recursive listing with Files.list
-					try(Stream<Path> listS = Files.list(target)) {
-						listS.forEach(listed -> doFile(jg, listed, target.relativize(listed), writer));
-					}
-				} else {
-					//it's a file, just search it
-					doFile(jg, target, target.getFileName(), writer);
+				if(Files.isRegularFile(target)) visitPath(jg, target, target.getFileName().toString(), writer);
+				else if(Files.isDirectory(target)) {
+					int recursionLimit = recurseIntoTargets ? Integer.MAX_VALUE : 1;
+					Files.walkFileTree(target, Collections.emptySet(), recursionLimit, new SimpleFileVisitor<Path>() {
+						@Override
+						public FileVisitResult visitFile(Path file, BasicFileAttributes attrs) throws IOException {
+							if(Files.isRegularFile(file)) visitPath(jg, file, target.relativize(file).toString(), writer);
+							return FileVisitResult.CONTINUE;
+						}
+					});
 				}
 			}
 		}
 	}
 
-	public void doFile(JarGrep jg, Path path, Path filename, Writer.FsWriter writer) {
-		if(Files.isDirectory(path)) return;
+	public void visitPath(JarGrep jg, Path path, String filename, Writer.FsWriter writer) throws IOException {
 		try(InputStream in = new BufferedInputStream(Files.newInputStream(path))) {
-			jg.visitInputStream(writer, filename.toString(), in);
-		} catch (Exception e) {
-			System.err.println("Problem reading file " + path);
-			e.printStackTrace(System.err);
-			//keep on truckin though
+			jg.visitInputStream(writer, filename, in);
 		}
 	}
 

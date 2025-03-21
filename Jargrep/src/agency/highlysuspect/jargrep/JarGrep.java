@@ -20,7 +20,7 @@ public class JarGrep {
 	
 	public final SearchOpts opts;
 	
-	public void visitInputStream(Writer.FsWriter fsWriter, String filename, InputStream in) throws Exception {
+	public void visitInputStream(Writer.FsWriter fsWriter, String filename, InputStream in) throws IOException {
 		byte[] allBytes = readAll(in);
 		boolean binary = looksBinary(allBytes);
 		boolean filenameMatch = opts.get(SearchOpts.SEARCH_FILENAMES) && opts.matches(filename);
@@ -66,7 +66,7 @@ public class JarGrep {
 		}
 	}
 	
-	public void visitZip(Writer.FsWriter fsWriter, byte[] in) throws Exception {
+	public void visitZip(Writer.FsWriter fsWriter, byte[] in) throws IOException {
 		//don't want to close the original input stream!
 		ZipInputStream zin = new ZipInputStream(new ByteArrayInputStream(in));
 		
@@ -84,7 +84,7 @@ public class JarGrep {
 	}
 	
 	@SuppressWarnings("CharsetObjectCanBeUsed") //teavm
-	public void visitBin(Writer.BinWriter result, byte[] bytes) throws Exception {
+	public void visitBin(Writer.BinWriter result, byte[] bytes) throws IOException {
 		//TODO don't line-by-line match for binary files
 		// lol string matching over binary files line-by-line is so broken anyway
 		for(String line : new String(bytes, "UTF-8").split("\n")) {
@@ -96,13 +96,13 @@ public class JarGrep {
 	}
 	
 	@SuppressWarnings("CharsetObjectCanBeUsed") //teavm
-	public void visitText(Writer.TxtWriter result, byte[] bytes) throws Exception {
+	public void visitText(Writer.TxtWriter result, byte[] bytes) throws IOException {
 		for(String line : new String(bytes, "UTF-8").split("\n")) {
 			if(opts.matches(line)) result.writeTextMatch(line);
 		}
 	}
 	
-	public void visitClass(Writer.ClsWriter cls, byte[] bytes) throws Exception {
+	public void visitClass(Writer.ClsWriter cls, byte[] bytes) {
 		try {
 			ClassReader cr = new ClassReader(bytes);
 			
@@ -136,7 +136,7 @@ public class JarGrep {
 				}
 			}, ClassReader.EXPAND_FRAMES);
 		} catch (Exception e) {
-			//TODO message
+			e.printStackTrace(); //TODO better message
 		}
 	}
 
