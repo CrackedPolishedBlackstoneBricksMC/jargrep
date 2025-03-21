@@ -85,7 +85,7 @@ public class Cli {
 		.comment("Report matches inside class method names."));
 	final OptionSpec<Boolean> searchLdc = trueflag(accepts("search-ldcs")
 		.comment("Report matches in LDC constants inside methods."));
-	final OptionSpec<Boolean> searchUsages = trueflag(accepts("search-usage") //TODO default this to false, very noisy.
+	final OptionSpec<Boolean> searchUsages = falseflag(accepts("search-usages")
 		.comment("Attempt to report matches inside GET/PUT and INVOKE instructions inside methods."));
 	
 	final OptionSpec<Boolean> alwaysRawSearch = falseflag(accepts("alwaysRawSearch")
