@@ -47,6 +47,7 @@ If you don't specify any files to search, jargrep will search all .jar, .zip, an
 |          `-i, --case-insensitive` |         | Enable case-insensitive mode.                                                       |
 |             `--include <pattern>` |         | When searching archives, only look in files matching this pattern.                  |
 |             `--exclude <pattern>` |         | When searching archives, don't look in files matching this pattern.                 |
+|                              `-r` |  false  | Recursively search directories specified on the command line.                       |
 |    `--search-filenames [boolean]` |  true   | Report matches in the names of files.                                               |
 |         `--search-text [boolean]` |  true   | Report matches inside text files.                                                   |
 |     `--search-binaries [boolean]` |  true   | Report matches inside binary files.                                                 |
