@@ -166,13 +166,13 @@ public class JarGrep {
 
 						@Override
 						public void visitFieldInsn(int opcode, String owner, String fieldName, String descriptor) {
-							if(opts.get(SEARCH_CLASS_USAGES) && (opts.matches(owner) || opts.matches(fieldName) || opts.matches(descriptor)))
+							if(opts.get(SEARCH_CLASS_USAGES) && (opts.matches(owner + "#" + fieldName) || opts.matches(descriptor)))
 								mth.writeFieldAccess(name, Writer.MthWriter.FieldAccessType.fromOpcode(opcode), owner, fieldName, descriptor);
 						}
 
 						@Override
 						public void visitMethodInsn(int opcode, String owner, String methodName, String descriptor, boolean isInterface) {
-							if(opts.get(SEARCH_CLASS_USAGES) && (opts.matches(owner) || opts.matches(methodName) || opts.matches(descriptor)))
+							if(opts.get(SEARCH_CLASS_USAGES) && (opts.matches(owner + "#" + methodName) || opts.matches(descriptor)))
 								mth.writeMethodAccess(name, Writer.MthWriter.MethodCallType.fromOpcode(opcode), owner, methodName, descriptor);
 						}
 
@@ -180,7 +180,7 @@ public class JarGrep {
 						public void visitInvokeDynamicInsn(String name, String descriptor, Handle bootstrapMethodHandle, Object... bootstrapMethodArguments) {
 							//you know, probably not the best idea to just shove invokedynamics into the owner/method/desc trichotomy
 							//also we don't search args
-							if(opts.get(SEARCH_CLASS_USAGES) && (opts.matches(bootstrapMethodHandle.getOwner()) || opts.matches(bootstrapMethodHandle.getName()) || opts.matches(descriptor)))
+							if(opts.get(SEARCH_CLASS_USAGES) && (opts.matches(bootstrapMethodHandle.getOwner() + "#" + bootstrapMethodHandle.getName()) || opts.matches(descriptor)))
 								mth.writeMethodAccess(name, Writer.MthWriter.MethodCallType.DYNAMIC, bootstrapMethodHandle.getOwner(), bootstrapMethodHandle.getName(), descriptor);
 						}
 					};
