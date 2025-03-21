@@ -8,7 +8,7 @@ import mill.util.Jvm
 import os.Path
 
 trait Defs {
-  def version = "2.0"
+  def version = "2.1"
 
   //toolchains
   def java8: ModuleRef[ZincWorkerModule] = ModuleRef(new ZincWorkerModule {
@@ -21,7 +21,6 @@ trait Defs {
   def asm = ivy"org.ow2.asm:asm:9.7"
   def joptSimple = ivy"net.sf.jopt-simple:jopt-simple:6.0-alpha-3"
 
-  def teavmCore = ivy"org.teavm:teavm-core:0.11.0"
   def teavmCli = ivy"org.teavm:teavm-cli:0.11.0"
   def teavmJsoApis = ivy"org.teavm:teavm-jso-apis:0.11.0"
   def teavmJso = ivy"org.teavm:teavm-jso:0.11.0"
@@ -75,25 +74,24 @@ object JargrepTea extends JavaModule with Defs {
       .map(_.path).toSeq
   }
 
-  def brewTea = Task {
-    def dst = "jargrep.js"
-    def dstFull = Task.dest / dst
+  def brewTea: T[PathRef] = Task {
+    def dst = Task.dest / "jargrep.js"
 
     Jvm.callProcess(
       mainClass = "org.teavm.cli.TeaVMRunner",
       classPath = teaClasspath(),
       cwd = Task.dest,
       mainArgs = Seq(
-        "-t", "javascript/js", "-f", dst,
+        "-t", "javascript/js", "-f", "jargrep.js",
         "agency.highlysuspect.jargrep.TeaEntrypoint"
       )
     )
 
-    println("tea is brewed! ", dstFull)
-    PathRef(dstFull)
+    println("tea is brewed! ", dst)
+    PathRef(dst)
   }
 
-  def packageTea = Task {
+  def packageTea: T[PathRef] = Task {
     def brewedTea = brewTea()
     def resourcesDirs = resources()
 

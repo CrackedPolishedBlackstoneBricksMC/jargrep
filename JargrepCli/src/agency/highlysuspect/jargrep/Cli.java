@@ -10,6 +10,7 @@ import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.*;
 import java.util.regex.Pattern;
+import java.util.stream.Stream;
 
 public class Cli {
 	public static void main(String[] args) throws Exception {
@@ -23,16 +24,39 @@ public class Cli {
 		
 		try(Writer.FsWriter writer = new ConsoleWriter(System.out)) {
 			for(Path target : targets) {
-				String filename = target.getFileName().toString();
-				try(InputStream in = new BufferedInputStream(Files.newInputStream(target))) {
-					jg.visitInputStream(writer, filename, in);
+				if(recurseIntoTargets) {
+					//recursive search with Files.walk
+					try(Stream<Path> walkedS = Files.walk(target)) {
+						walkedS.forEach(walked -> doFile(jg, walked, target.relativize(walked), writer));
+					}
+				} else if(Files.isDirectory(target)) {
+					//it's a directory; do non-recursive listing with Files.list
+					try(Stream<Path> listS = Files.list(target)) {
+						listS.forEach(listed -> doFile(jg, listed, target.relativize(listed), writer));
+					}
+				} else {
+					//it's a file, just search it
+					doFile(jg, target, target.getFileName(), writer);
 				}
 			}
 		}
 	}
-	
+
+	public void doFile(JarGrep jg, Path path, Path filename, Writer.FsWriter writer) {
+		if(Files.isDirectory(path)) return;
+		try(InputStream in = new BufferedInputStream(Files.newInputStream(path))) {
+			jg.visitInputStream(writer, filename.toString(), in);
+		} catch (Exception e) {
+			System.err.println("Problem reading file " + path);
+			e.printStackTrace(System.err);
+			//keep on truckin though
+		}
+	}
+
 	public SearchOpts opts = new SearchOpts();
+	//TODO formatting opts go here
 	public List<Path> targets = new ArrayList<>();
+	public boolean recurseIntoTargets = false;
 	
 	final OptionParser parser = new OptionParser(true);
 	final OptionSpec<Void> help = accepts("help", "?").comment("Print this help message.").forHelp();
@@ -45,6 +69,9 @@ public class Cli {
 		.comment("Enable case-insensitive mode.");
 	
 	//how to search
+	final OptionSpec<Void> recurseDirs = accepts("r", "recurse")
+		.comment("Recursively search directories specified on the command line.");
+
 	final OptionSpec<Boolean> searchFilename = trueflag(accepts("search-filenames")
 		.comment("Report matches in the names of files."));
 	final OptionSpec<Boolean> searchPlaintext = trueflag(accepts("search-text")
@@ -88,6 +115,7 @@ public class Cli {
 		parser.formatHelpWith(new TweakedHelpFormatter(
 			help, version, fixedStrings, caseInsensitive,
 			include, exclude,
+			recurseDirs,
 			searchFilename, searchPlaintext, searchBinary, searchArchive,
 			searchClass, searchField, searchFieldValue, searchMethod, searchLdc,
 			alwaysRawSearch,
@@ -113,7 +141,7 @@ public class Cli {
 		return builder.withOptionalArg().withValuesConvertedBy(BooleanConv.I).defaultsTo(false);
 	}
 	
-	String invocation() {
+	String getInvocation() {
 		String trueName;
 		try {
 			//lol
@@ -123,10 +151,15 @@ public class Cli {
 		}
 		return "Usage: java -jar " + trueName + " [OPTION]... PATTERN [FILE]...";
 	}
+
+	String getVersion() {
+		String hmm = getClass().getPackage().getImplementationVersion();
+		return hmm == null ? "Unknown Version" : hmm;
+	}
 	
 	RuntimeException usage() {
 		for(String s : new String[] {
-			invocation(),
+			getInvocation(),
 			"",
 			"jargrep is a recursive Java archive searching tool.",
 			"For example, to search for 'needle' inside 'haystack.jar', try",
@@ -136,7 +169,7 @@ public class Cli {
 			"If you don't specify any files to search, jargrep will search",
 			"all .jar, .zip, and .class files in the current directory.",
 			"",
-			"This is jargrep " + getClass().getPackage().getImplementationVersion() +
+			"This is jargrep " + getVersion() +
 				". Pass --help for information about all options.",
 		}) System.out.println(s);
 		
@@ -145,7 +178,7 @@ public class Cli {
 	}
 	
 	RuntimeException halp() {
-		System.out.println(invocation());
+		System.out.println(getInvocation());
 		System.out.println();
 		//really guys
 		try {
@@ -157,7 +190,7 @@ public class Cli {
 	}
 	
 	RuntimeException version() {
-		System.out.println("jargrep version " + getClass().getPackage().getImplementationVersion());
+		System.out.println("jargrep version " + getVersion());
 		return exit(1);
 	}
 	
@@ -202,6 +235,8 @@ public class Cli {
 		patternCompileOptions |= set.has(fixedStrings) ? Pattern.LITERAL : 0;
 		patternCompileOptions |= set.has(caseInsensitive) ? Pattern.CASE_INSENSITIVE : 0;
 		opts.grep = Pattern.compile(patternToCompile, patternCompileOptions);
+
+		this.recurseIntoTargets = set.has(recurseDirs);
 		
 		//default to archives in the current directory
 		if(targets.isEmpty()) {
@@ -261,7 +296,7 @@ public class Cli {
 		//if binary-files is set, set binarymode from it
 		//else if '-a' or '--text' is set, set to text
 		opts.binaryMode = SearchOpts.BinaryMode.BINARY;
-		
+
 //		if(set.has(withFilename)) {
 //			opts.printFilename = true;
 //		} else if(set.has(noFilename)) {

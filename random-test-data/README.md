@@ -1,5 +1,7 @@
 Assorted fun jars to search on.
 
+Some of them have been put in a subdirectory just to test the subdirectory behavior.
+
 # components.jar
 
 The "OSU CSE components", class library from a Java programming course at school.
