@@ -11,7 +11,7 @@ import org.teavm.jso.file.File;
 import org.teavm.jso.file.FileList;
 import org.teavm.jso.typedarrays.Int8Array;
 
-import java.io.ByteArrayInputStream;
+import java.io.InputStream;
 import java.util.regex.Pattern;
 
 public class TeaEntrypoint {
@@ -43,23 +43,24 @@ public class TeaEntrypoint {
 		fieldset.withChild(fileInput).withChild(search).withChild(submit);
 		form.withChild(fieldset);
 		document.getBody().appendChild(form);
-	}
-	
-	//It feels like there should be a better way to do this, LOL.
-	static byte[] fromInt8Array(Int8Array array) {
-		byte[] bytes = new byte[array.getByteLength()];
-		for(int i = 0; i < bytes.length; i++) {
-			bytes[i] = array.get(i);
-		}
-		return bytes;
+		
+		System.out.println("out!");
+		HTMLElement out = document.createElement("div");
+		out.setId("out");
+		document.getBody().appendChild(out);
 	}
 	
 	@Async
 	public static void onSubmit(HTMLElement fileInput, HTMLElement search) {
 		FileList fileList = ((HTMLInputElement) fileInput).getFiles();
 		
-		Writer.FsWriter writer = new ConsoleWriter(System.out);
+		HTMLElement out = document.getElementById("out");
+		out.clear();
+		Writer.FsWriter htmlWriter = new HtmlWriter(document, out);
+		
+//		Writer.FsWriter writer = new ConsoleWriter(System.out);
 		SearchOpts opts = new SearchOpts();
+		//todo more inputs!
 		opts.grep = Pattern.compile(((HTMLInputElement) search).getValue());
 		
 		JarGrep jg = new JarGrep(opts);
@@ -69,10 +70,8 @@ public class TeaEntrypoint {
 			
 			file.arrayBuffer().then(arrayBuffer -> {
 				try {
-					byte[] bytes = fromInt8Array(new Int8Array(arrayBuffer));
-					ByteArrayInputStream bais = new ByteArrayInputStream(bytes);
-					
-					jg.visitInputStream(writer, file.getName(), bais);
+					InputStream inp = new Int8ArrayInputStream(new Int8Array(arrayBuffer));
+					jg.visitInputStream(htmlWriter, file.getName(), inp);
 				} catch (Exception e) {
 					throw new RuntimeException(e);
 				}

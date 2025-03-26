@@ -69,9 +69,8 @@ object JargrepTea extends JavaModule with Defs {
   override def ivyDeps: T[Agg[Dep]] = super.ivyDeps() ++ Agg(teavmJsoApis, teavmJso)
 
   //just slap teavm-cli on the classpath with the assembly jar, it'll find it
-  def teaClasspath: T[Seq[Path]] = Task {
+  def teaClasspath: T[Agg[PathRef]] = Task {
     (defaultResolver().resolveDeps(Agg(teavmCli)) ++ Agg(assembly()))
-      .map(_.path).toSeq
   }
 
   def brewTea: T[PathRef] = Task {
@@ -79,7 +78,7 @@ object JargrepTea extends JavaModule with Defs {
 
     Jvm.callProcess(
       mainClass = "org.teavm.cli.TeaVMRunner",
-      classPath = teaClasspath(),
+      classPath = teaClasspath().map(_.path).toSeq,
       cwd = Task.dest,
       mainArgs = Seq(
         "-t", "javascript/js", "-f", "jargrep.js",
