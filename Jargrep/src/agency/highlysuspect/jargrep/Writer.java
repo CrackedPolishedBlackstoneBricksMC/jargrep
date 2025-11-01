@@ -10,7 +10,8 @@ public interface Writer extends AutoCloseable {
 	default void close() {
 		writeEnd();
 	}
-	
+
+	void writeRawFileName(String filename);
 	void writeEnd();
 	
 	interface FileWriter extends Writer {

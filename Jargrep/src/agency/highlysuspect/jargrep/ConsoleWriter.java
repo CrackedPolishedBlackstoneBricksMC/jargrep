@@ -4,6 +4,7 @@ import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
 import java.io.PrintStream;
+import java.util.HashSet;
 import java.util.Objects;
 
 import static agency.highlysuspect.jargrep.Writer.*;
@@ -29,6 +30,7 @@ public class ConsoleWriter implements FsWriter, TxtWriter, BinWriter, ClsWriter,
 	protected final int indent;
 	protected final @Nullable ConsoleWriter parent;
 	protected final @Nullable String header;
+	protected final HashSet<String> printedFilenames = new HashSet<>();
 	
 	protected boolean headerShown = false;
 	
@@ -103,6 +105,13 @@ public class ConsoleWriter implements FsWriter, TxtWriter, BinWriter, ClsWriter,
 		child("match: " + match);
 	}
 	
+	@Override
+	public void writeRawFileName(String filename) {
+		if (printedFilenames.add(filename)) {
+			out.println(filename);
+		}
+	}
+
 	@Override
 	public void writeFileName(String filename) {
 		printHeader();

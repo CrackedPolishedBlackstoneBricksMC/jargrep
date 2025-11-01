@@ -35,8 +35,14 @@ public class JarGrep {
 			//TODO check the first few bytes to catch renamed zips(?)
 			if(opts.get(SEARCH_ARCHIVES) && (filename.endsWith(".jar") || filename.endsWith(".zip"))) {
 				try(Writer.FsWriter archiveWriter = fsWriter.archiveWriter(filename)) {
-					if(filenameMatch) archiveWriter.writeFileName(filename);
-					visitZip(archiveWriter, allBytes);
+					if(filenameMatch) {
+						if (!opts.get(ONLY_SHOW_FILENAME)) {
+							archiveWriter.writeFileName(filename);
+						} else {
+							archiveWriter.writeRawFileName(filename);
+						}
+					}
+					visitZip(archiveWriter, allBytes, filename);
 					visitedAsSpecial = true;
 				}
 			}
@@ -44,7 +50,7 @@ public class JarGrep {
 			//is it a class file?
 			if(opts.get(SEARCH_CLASSES) && filename.endsWith(".class")) {
 				try(Writer.ClsWriter classWriter = fsWriter.classWriter(filename)) {
-					visitClass(classWriter, allBytes);
+					visitClass(classWriter, allBytes, filename);
 					visitedAsSpecial = true;
 				}
 			}
@@ -55,21 +61,33 @@ public class JarGrep {
 				(!visitedAsSpecial || opts.get(ALWAYS_DO_RAW_SEARCH))
 			) {
 				try(Writer.BinWriter binWriter = fsWriter.binaryWriter(filename)) {
-					if(filenameMatch) binWriter.writeFileName(filename);
-					visitBin(binWriter, allBytes);
+					if(filenameMatch) {
+						if (opts.get(ONLY_SHOW_FILENAME)) {
+							binWriter.writeFileName(filename);
+						} else {
+							binWriter.writeRawFileName(filename);
+						}
+					}
+					visitBin(binWriter, allBytes, filename);
 				}
 			}
 		} else {
 			if(opts.get(SEARCH_PLAINTEXT_FILES)) {
 				try(Writer.TxtWriter txtWriter = fsWriter.textWriter(filename)) {
-					if(filenameMatch) txtWriter.writeFileName(filename);
-					visitText(fsWriter.textWriter(filename), allBytes);
+					if(filenameMatch) {
+						if (!opts.get(ONLY_SHOW_FILENAME)) {
+							txtWriter.writeFileName(filename);
+						} else {
+							txtWriter.writeRawFileName(filename);
+						}
+					}
+					visitText(fsWriter.textWriter(filename), allBytes, filename);
 				}
 			}
 		}
 	}
 	
-	public void visitZip(Writer.FsWriter fsWriter, byte[] in) throws IOException {
+	public void visitZip(Writer.FsWriter fsWriter, byte[] in, String filename) throws IOException {
 		//don't want to close the original input stream!
 		ZipInputStream zin = new ZipInputStream(new ByteArrayInputStream(in));
 		
@@ -78,8 +96,13 @@ public class JarGrep {
 			String name = entry.getName();
 			if(opts.filenameFilter.test(name)) {
 				//TODO kind of a hack
-				if(entry.isDirectory() && opts.get(SEARCH_FILENAMES) && opts.matches(name))
-					fsWriter.writeDirectoryName(name);
+				if(entry.isDirectory() && opts.get(SEARCH_FILENAMES) && opts.matches(name)) {
+					if (!opts.get(ONLY_SHOW_FILENAME)) {
+						fsWriter.writeDirectoryName(name);
+					} else {
+						fsWriter.writeRawFileName(filename);
+					}
+				}
 				
 				else visitInputStream(fsWriter, name, zin);
 			}
@@ -87,21 +110,31 @@ public class JarGrep {
 	}
 	
 	@SuppressWarnings("CharsetObjectCanBeUsed") //teavm
-	public void visitBin(Writer.BinWriter result, byte[] bytes) throws IOException {
+	public void visitBin(Writer.BinWriter result, byte[] bytes, String filename) throws IOException {
 		//TODO don't line-by-line match for binary files
 		// lol string matching over binary files line-by-line is so broken anyway
 		for(String line : new String(bytes, "UTF-8").split("\n")) {
 			if(opts.matches(line)) {
-				result.writeBinaryMatch();
-				break;
-			}
+				if (!opts.get(ONLY_SHOW_FILENAME)) {
+					result.writeBinaryMatch();
+					break;
+				} else {
+					result.writeRawFileName(filename);
+				}
+			} 
 		}
 	}
 	
 	@SuppressWarnings("CharsetObjectCanBeUsed") //teavm
-	public void visitText(Writer.TxtWriter result, byte[] bytes) throws IOException {
+	public void visitText(Writer.TxtWriter result, byte[] bytes, String filename) throws IOException {
 		for(String line : new String(bytes, "UTF-8").split("\n")) {
-			if(opts.matches(line)) result.writeTextMatch(line);
+			if(opts.matches(line)) {
+				if (!opts.get(ONLY_SHOW_FILENAME)) {
+					result.writeTextMatch(line);
+				} else {
+					result.writeRawFileName(filename);
+				}
+			} 
 		}
 	}
 
@@ -124,22 +157,40 @@ public class JarGrep {
 		immediates[Opcodes.DCONST_1] = "1.0D";
 	}
 	
-	public void visitClass(Writer.ClsWriter cls, byte[] bytes) {
+	public void visitClass(Writer.ClsWriter cls, byte[] bytes, String filename) {
 		try {
 			ClassReader cr = new ClassReader(bytes);
 			
 			cr.accept(new ClassVisitor(Opcodes.ASM9) {
 				@Override
 				public void visit(int version, int access, String name, String signature, String superName, String[] interfaces) {
-					if(opts.matches(name)) cls.writeClassName(name);
+					if(opts.matches(name)) {
+						if (!opts.get(ONLY_SHOW_FILENAME)) {
+							cls.writeClassName(name);
+						} else {
+							cls.writeRawFileName(filename);
+						}
+					}
 					super.visit(version, access, name, signature, superName, interfaces);
 				}
 				
 				@Override
 				public FieldVisitor visitField(int access, String name, String descriptor, String signature, Object value) {
 					try(Writer.FldWriter fld = cls.fieldWriter(name)) {
-						if(opts.get(SEARCH_CLASS_FIELD_NAMES) && opts.matches(name)) fld.writeFieldName(name);
-						if(opts.get(SEARCH_CLASS_FIELD_VALUES) && opts.matches(value)) fld.writeFieldValue(name, value.toString());
+						if(opts.get(SEARCH_CLASS_FIELD_NAMES) && opts.matches(name)) {
+							if (!opts.get(ONLY_SHOW_FILENAME)) {
+								fld.writeFieldName(name);
+							} else {
+								cls.writeRawFileName(filename);
+							}
+						}
+						if(opts.get(SEARCH_CLASS_FIELD_VALUES) && opts.matches(value)) {
+							if (!opts.get(ONLY_SHOW_FILENAME)) {
+								fld.writeFieldValue(name, value.toString());
+							} else {
+								cls.writeRawFileName(filename);
+							}
+						}
 					}
 					return null;
 				}
@@ -147,7 +198,13 @@ public class JarGrep {
 				@Override
 				public MethodVisitor visitMethod(int access, String name, String descriptor, String signature, String[] exceptions) {
 					Writer.MthWriter mth = cls.methodWriter(name);
-					if(opts.get(SEARCH_CLASS_METHOD_NAMES) && opts.matches(name)) mth.writeMethodName(name);
+					if(opts.get(SEARCH_CLASS_METHOD_NAMES) && opts.matches(name)) {
+						if (!opts.get(ONLY_SHOW_FILENAME)) {
+							mth.writeMethodName(name);
+						} else {
+							cls.writeRawFileName(filename);
+						}
+					}
 					
 					return new MethodVisitor(Opcodes.ASM9, super.visitMethod(access, name, descriptor, signature, exceptions)) {
 						@Override
@@ -161,27 +218,48 @@ public class JarGrep {
 						}
 
 						private void matchConst(Object it) {
-							if(opts.matches(it)) mth.writeConstant(name, it.toString());
+							if(opts.matches(it)) {
+								if (!opts.get(ONLY_SHOW_FILENAME)) {
+									mth.writeConstant(name, it.toString());
+								} else {
+									mth.writeRawFileName(filename);
+								}
+							}
 						}
 
 						@Override
 						public void visitFieldInsn(int opcode, String owner, String fieldName, String descriptor) {
-							if(opts.get(SEARCH_CLASS_USAGES) && (opts.matches(owner + "#" + fieldName) || opts.matches(descriptor)))
-								mth.writeFieldAccess(name, Writer.MthWriter.FieldAccessType.fromOpcode(opcode), owner, fieldName, descriptor);
+							if(opts.get(SEARCH_CLASS_USAGES) && (opts.matches(owner + "#" + fieldName) || opts.matches(descriptor))) {
+								if (!opts.get(ONLY_SHOW_FILENAME)) {
+									mth.writeFieldAccess(name, Writer.MthWriter.FieldAccessType.fromOpcode(opcode), owner, fieldName, descriptor);
+								} else {
+									mth.writeRawFileName(filename);
+								}
+							}
 						}
 
 						@Override
 						public void visitMethodInsn(int opcode, String owner, String methodName, String descriptor, boolean isInterface) {
-							if(opts.get(SEARCH_CLASS_USAGES) && (opts.matches(owner + "#" + methodName) || opts.matches(descriptor)))
-								mth.writeMethodAccess(name, Writer.MthWriter.MethodCallType.fromOpcode(opcode), owner, methodName, descriptor);
+							if(opts.get(SEARCH_CLASS_USAGES) && (opts.matches(owner + "#" + methodName) || opts.matches(descriptor))) {
+								if (!opts.get(ONLY_SHOW_FILENAME)) {
+									mth.writeMethodAccess(name, Writer.MthWriter.MethodCallType.fromOpcode(opcode), owner, methodName, descriptor);
+								} else {
+									mth.writeRawFileName(filename);
+								}
+							}
 						}
 
 						@Override
 						public void visitInvokeDynamicInsn(String name, String descriptor, Handle bootstrapMethodHandle, Object... bootstrapMethodArguments) {
 							//you know, probably not the best idea to just shove invokedynamics into the owner/method/desc trichotomy
 							//also we don't search args
-							if(opts.get(SEARCH_CLASS_USAGES) && (opts.matches(bootstrapMethodHandle.getOwner() + "#" + bootstrapMethodHandle.getName()) || opts.matches(descriptor)))
-								mth.writeMethodAccess(name, Writer.MthWriter.MethodCallType.DYNAMIC, bootstrapMethodHandle.getOwner(), bootstrapMethodHandle.getName(), descriptor);
+							if(opts.get(SEARCH_CLASS_USAGES) && (opts.matches(bootstrapMethodHandle.getOwner() + "#" + bootstrapMethodHandle.getName()) || opts.matches(descriptor))) {
+								if (!opts.get(ONLY_SHOW_FILENAME)) {
+									mth.writeMethodAccess(name, Writer.MthWriter.MethodCallType.DYNAMIC, bootstrapMethodHandle.getOwner(), bootstrapMethodHandle.getName(), descriptor);
+								} else {
+									mth.writeRawFileName(filename);
+								}
+							}
 						}
 					};
 				}
