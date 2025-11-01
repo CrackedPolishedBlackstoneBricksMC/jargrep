@@ -87,6 +87,8 @@ public class Cli {
 		.comment("Report matches in LDC constants inside methods."));
 	final OptionSpec<Boolean> searchUsages = falseflag(accepts("search-usages")
 		.comment("Attempt to report matches inside GET/PUT and INVOKE instructions inside methods."));
+	final OptionSpec<Boolean> onlyFilename = falseflag(accepts("l", "files-with-matches", "classes-with-matches")
+		.comment("Only show the names of matching files/classes.")); 
 	
 	final OptionSpec<Boolean> alwaysRawSearch = falseflag(accepts("alwaysRawSearch")
 		.comment("Also perform a raw search over binaries even if they can be parsed as classes/zips."));
@@ -98,7 +100,6 @@ public class Cli {
 		.comment("When searching archives, don't look in files matching this pattern.")
 		.availableIf(searchArchive).availableUnless(includeB).withRequiredArg();
 	final OptionSpec<String> include = includeB.availableUnless(exclude).withRequiredArg();
-	
 	//output
 //	final OptionSpec<Void> withFilename = accepts("with-filename", "H").noComment();
 //	final OptionSpec<Void> noFilename = accepts("no-filename", "h").noComment();
@@ -111,6 +112,7 @@ public class Cli {
 			recurseDirs,
 			searchFilename, searchPlaintext, searchBinary, searchArchive,
 			searchClass, searchField, searchFieldValue, searchMethod, searchLdc, searchUsages,
+			onlyFilename,
 			alwaysRawSearch,
 			parser.nonOptions() //required for the joptsimple internals im abusing
 		));
@@ -261,7 +263,8 @@ public class Cli {
 			SearchOpts.SEARCH_CLASS_METHOD_NAMES,
 			SearchOpts.SEARCH_CLASS_METHOD_VALUES,
 			SearchOpts.SEARCH_CLASS_USAGES,
-			SearchOpts.ALWAYS_DO_RAW_SEARCH
+			SearchOpts.ALWAYS_DO_RAW_SEARCH,
+			SearchOpts.ONLY_SHOW_FILENAME
 		};
 		OptionSpec<?>[] specs = {
 			searchFilename,
@@ -274,7 +277,8 @@ public class Cli {
 			searchMethod,
 			searchLdc,
 			searchUsages,
-			alwaysRawSearch
+			alwaysRawSearch,
+			onlyFilename
 		};
 		for(int i = 0; i < flags.length; i++) {
 			OptionSpec<Boolean> spec = (OptionSpec<Boolean>) specs[i];

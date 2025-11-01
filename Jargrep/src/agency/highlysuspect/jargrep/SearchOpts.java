@@ -70,6 +70,7 @@ public class SearchOpts {
 	public static final int SEARCH_CLASS_METHOD_NAMES = 128;
 	public static final int SEARCH_CLASS_METHOD_VALUES = 256;
 	public static final int SEARCH_CLASS_USAGES = 1024; //yes theres a gap in the numbering
+	public static final int ONLY_SHOW_FILENAME = 2048;
 	
 	public static final int ALWAYS_DO_RAW_SEARCH = 512;
 	
