@@ -17,13 +17,13 @@ trait Defs {
   def currentJava: ModuleRef[ZincWorkerModule] = ModuleRef(ZincWorkerModule)
 
   //deps
-  def jetbrainsAnnotations = ivy"org.jetbrains:annotations:24.1.0"
-  def asm = ivy"org.ow2.asm:asm:9.7"
+  def jetbrainsAnnotations = ivy"org.jetbrains:annotations:26.1.0"
+  def asm = ivy"org.ow2.asm:asm:9.10.1"
   def joptSimple = ivy"net.sf.jopt-simple:jopt-simple:6.0-alpha-3"
 
-  def teavmCli = ivy"org.teavm:teavm-cli:0.11.0"
-  def teavmJsoApis = ivy"org.teavm:teavm-jso-apis:0.11.0"
-  def teavmJso = ivy"org.teavm:teavm-jso:0.11.0"
+  def teavmCli = ivy"org.teavm:teavm-cli:0.14.1"
+  def teavmJsoApis = ivy"org.teavm:teavm-jso-apis:0.14.1"
+  def teavmJso = ivy"org.teavm:teavm-jso:0.14.1"
 }
 
 object Jargrep extends JavaModule with Defs {
@@ -59,7 +59,7 @@ object JargrepCli extends JavaModule with Defs {
 
   object test extends JavaTests with TestModule.Junit5 {
     //pin the version
-    override def bomIvyDeps: T[Agg[Dep]] = super.bomIvyDeps() ++ Agg(ivy"org.junit:junit-bom:5.12.1")
+    override def bomIvyDeps: T[Agg[Dep]] = super.bomIvyDeps() ++ Agg(ivy"org.junit:junit-bom:5.14.4")
   }
 }
 
