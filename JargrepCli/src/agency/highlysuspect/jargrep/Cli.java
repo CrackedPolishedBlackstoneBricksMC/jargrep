@@ -27,16 +27,30 @@ public class Cli {
 		
 		try(Writer.FsWriter writer = new ConsoleWriter(System.out)) {
 			for(Path target : targets) {
-				if(Files.isRegularFile(target)) visitPath(jg, target, target.getFileName().toString(), writer);
-				else if(Files.isDirectory(target)) {
-					int recursionLimit = recurseIntoTargets ? Integer.MAX_VALUE : 1;
-					Files.walkFileTree(target, Collections.emptySet(), recursionLimit, new SimpleFileVisitor<Path>() {
-						@Override
-						public FileVisitResult visitFile(Path file, BasicFileAttributes attrs) throws IOException {
-							if(Files.isRegularFile(file)) visitPath(jg, file, target.relativize(file).toString(), writer);
-							return FileVisitResult.CONTINUE;
-						}
-					});
+				try {
+					if(Files.isRegularFile(target)) visitPath(jg, target, target.getFileName().toString(), writer);
+					else if(Files.isDirectory(target)) {
+						int recursionLimit = recurseIntoTargets ? Integer.MAX_VALUE : 1;
+						Files.walkFileTree(target, Collections.emptySet(), recursionLimit, new SimpleFileVisitor<Path>() {
+							@Override
+							public FileVisitResult visitFile(Path file, BasicFileAttributes attrs) throws IOException {
+								try {
+									if(Files.isRegularFile(file)) visitPath(jg, file, target.relativize(file).toString(), writer);
+								} catch(IOException e) {
+									System.err.println("jargrep: skipping unreadable file " + file + ": " + e.getMessage());
+								}
+								return FileVisitResult.CONTINUE;
+							}
+							
+							@Override
+							public FileVisitResult visitFileFailed(Path file, IOException e) {
+								System.err.println("jargrep: skipping unreadable file " + file + ": " + e.getMessage());
+								return FileVisitResult.CONTINUE;
+							}
+						});
+					}
+				} catch(IOException e) {
+					System.err.println("jargrep: skipping unreadable target " + target + ": " + e.getMessage());
 				}
 			}
 		}

@@ -23,7 +23,15 @@ public class JarGrep {
 	
 	public final SearchOpts opts;
 	
+	//Archives can nest inside each other, so cap the depth to avoid
+	//blowing the heap or the stack on hostile input.
+	public static final int MAX_ARCHIVE_DEPTH = 10;
+	
 	public void visitInputStream(Writer.FsWriter fsWriter, String filename, InputStream in) throws IOException {
+		visitInputStream(fsWriter, filename, in, 0);
+	}
+	
+	public void visitInputStream(Writer.FsWriter fsWriter, String filename, InputStream in, int depth) throws IOException {
 		byte[] allBytes = readAll(in);
 		boolean binary = looksBinary(allBytes);
 		boolean filenameMatch = opts.get(SEARCH_FILENAMES) && opts.matches(filename);
@@ -34,9 +42,12 @@ public class JarGrep {
 			//is it a jar or zip?
 			//TODO check the first few bytes to catch renamed zips(?)
 			if(opts.get(SEARCH_ARCHIVES) && (filename.endsWith(".jar") || filename.endsWith(".zip"))) {
-				try(Writer.FsWriter archiveWriter = fsWriter.archiveWriter(filename)) {
+				if(depth >= MAX_ARCHIVE_DEPTH) {
+					System.err.println("jargrep: max archive nesting depth reached at " + filename + ", skipping");
+					visitedAsSpecial = true;
+				} else try(Writer.FsWriter archiveWriter = fsWriter.archiveWriter(filename)) {
 					if(filenameMatch) archiveWriter.writeFileName(filename);
-					visitZip(archiveWriter, allBytes);
+					visitZip(archiveWriter, allBytes, depth + 1);
 					visitedAsSpecial = true;
 				}
 			}
@@ -70,18 +81,34 @@ public class JarGrep {
 	}
 	
 	public void visitZip(Writer.FsWriter fsWriter, byte[] in) throws IOException {
+		visitZip(fsWriter, in, 1);
+	}
+	
+	public void visitZip(Writer.FsWriter fsWriter, byte[] in, int depth) throws IOException {
 		//don't want to close the original input stream!
 		ZipInputStream zin = new ZipInputStream(new ByteArrayInputStream(in));
 		
-		ZipEntry entry;
-		while((entry = zin.getNextEntry()) != null) {
+		while(true) {
+			ZipEntry entry;
+			try {
+				entry = zin.getNextEntry();
+			} catch(IOException | RuntimeException e) {
+				System.err.println("jargrep: skipping rest of archive, unreadable entry: " + e.getMessage());
+				break;
+			}
+			if(entry == null) break;
+			
 			String name = entry.getName();
 			if(opts.filenameFilter.test(name)) {
 				//TODO kind of a hack
 				if(entry.isDirectory() && opts.get(SEARCH_FILENAMES) && opts.matches(name))
 					fsWriter.writeDirectoryName(name);
 				
-				else visitInputStream(fsWriter, name, zin);
+				else try {
+					visitInputStream(fsWriter, name, zin, depth);
+				} catch(IOException | RuntimeException e) {
+					System.err.println("jargrep: skipping unreadable entry " + name + ": " + e.getMessage());
+				}
 			}
 		}
 	}
